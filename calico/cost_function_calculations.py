@@ -7,8 +7,8 @@ def cost_skycal(
     model_visibilities,
     data_visibilities,
     visibility_weights,
-    gains_exp_mat_1,
-    gains_exp_mat_2,
+    ant1_inds,
+    ant2_inds,
     lambda_val,
 ):
     """
@@ -24,10 +24,10 @@ def cost_skycal(
         Shape (Ntimes, Nbls,).
     visibility_weights : array of float
         Shape (Ntimes, Nbls,).
-    gains_exp_mat_1 : array of int
-        Shape (Nbls, Nants,).
-    gains_exp_mat_2 : array of int
-        Shape (Nbls, Nants,).
+    ant1_inds : array of int
+        Shape (Nbls,).
+    ant2_inds : array of int
+        Shape (Nbls,).
     lambda_val : float
         Weight of the phase regularization term; must be positive.
 
@@ -37,9 +37,7 @@ def cost_skycal(
         Value of the cost function.
     """
 
-    gains_expanded = (
-        np.matmul(gains_exp_mat_1, gains) * np.matmul(gains_exp_mat_2, np.conj(gains))
-    )[np.newaxis, :]
+    gains_expanded = (gains[ant1_inds] * np.conj(gains[ant2_inds]))[np.newaxis, :]
     res_vec = model_visibilities - gains_expanded * data_visibilities
     cost = np.sum(visibility_weights * np.abs(res_vec) ** 2)
 
@@ -55,8 +53,8 @@ def jacobian_skycal(
     model_visibilities,
     data_visibilities,
     visibility_weights,
-    gains_exp_mat_1,
-    gains_exp_mat_2,
+    ant1_inds,
+    ant2_inds,
     lambda_val,
 ):
     """
@@ -72,10 +70,10 @@ def jacobian_skycal(
         Shape (Ntimes, Nbls,).
     visibility_weights : array of float
         Shape (Ntimes, Nbls,).
-    gains_exp_mat_1 : array of int
-        Shape (Nbls, Nants,).
-    gains_exp_mat_2 : array of int
-        Shape (Nbls, Nants,).
+    ant1_inds : array of int
+        Shape (Nbls,).
+    ant2_inds : array of int
+        Shape (Nbls,).
     lambda_val : float
         Weight of the phase regularization term; must be positive.
 
@@ -90,8 +88,8 @@ def jacobian_skycal(
 
     # Convert gains to visibility space
     # Add time axis
-    gains_expanded_1 = np.matmul(gains_exp_mat_1, gains)[np.newaxis, :]
-    gains_expanded_2 = np.matmul(gains_exp_mat_2, gains)[np.newaxis, :]
+    gains_expanded_1 = gains[np.newaxis, ant1_inds]
+    gains_expanded_2 = gains[np.newaxis, ant2_inds]
 
     res_vec = (
         gains_expanded_1 * np.conj(gains_expanded_2) * data_visibilities
@@ -101,12 +99,14 @@ def jacobian_skycal(
         visibility_weights * gains_expanded_2 * np.conj(data_visibilities) * res_vec,
         axis=0,
     )
-    term1 = np.matmul(gains_exp_mat_1.T, term1)
+    term1 = np.bincount(
+        ant1_inds, weights=term1
+    )  # fix this to work with multi-dimensional weights
     term2 = np.sum(
         visibility_weights * gains_expanded_1 * data_visibilities * np.conj(res_vec),
         axis=0,
     )
-    term2 = np.matmul(gains_exp_mat_2.T, term2)
+    term2 = np.bincount(ant2_inds, weights=term2)
 
     jac = 2 * (term1 + term2)
 

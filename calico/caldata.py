@@ -55,10 +55,10 @@ class CalData:
     dwcal_memory_save_mode : bool
         Defines the format of dwcal_inv_covariance. If True, dwcal_inv_covariance
         is assumed to be Toeplitz and is stored in a more compact form.
-    gains_exp_mat_1 : array of int
-        Shape (Nbls, Nants,).
-    gains_exp_mat_2 : array of int
-        Shape (Nbls, Nants,).
+    ant1_inds : array of int
+        Shape (Nbls,).
+    ant2_inds : array of int
+        Shape (Nbls,).
     gains_multiply_model : bool
         If True, measurement equation is defined as v_ij ≈ g_i g_j^* m_ij. If False,
         measurement equation is defined as g_i g_j^* v_ij ≈ m_ij.
@@ -102,8 +102,8 @@ class CalData:
         self.visibility_weights = None
         self.dwcal_inv_covariance = None
         self.dwcal_memory_save_mode = None
-        self.gains_exp_mat_1 = None
-        self.gains_exp_mat_2 = None
+        self.ant1_inds = None
+        self.ant2_inds = None
         self.gains_multiply_model = None
         self.antenna_names = None
         self.antenna_numbers = None
@@ -442,24 +442,18 @@ class CalData:
             ] = True
 
         # Create gains expand matrices
-        self.gains_exp_mat_1 = np.zeros((self.Nbls, self.Nants), dtype=int)
-        self.gains_exp_mat_2 = np.zeros((self.Nbls, self.Nants), dtype=int)
+        self.ant1_inds = np.zeros(self.Nbls, dtype=int)
+        self.ant2_inds = np.zeros(self.Nbls, dtype=int)
         self.antenna_numbers = np.unique(
             [metadata_reference.ant_1_array, metadata_reference.ant_2_array]
         )
         for baseline in range(metadata_reference.Nbls):
-            self.gains_exp_mat_1[
-                baseline,
-                np.where(
-                    self.antenna_numbers == metadata_reference.ant_1_array[baseline]
-                ),
-            ] = 1
-            self.gains_exp_mat_2[
-                baseline,
-                np.where(
-                    self.antenna_numbers == metadata_reference.ant_2_array[baseline]
-                ),
-            ] = 1
+            self.ant1_inds[baseline] = np.where(
+                self.antenna_numbers == metadata_reference.ant_1_array[baseline]
+            )[0]
+            self.ant2_inds[baseline] = np.where(
+                self.antenna_numbers == metadata_reference.ant_2_array[baseline]
+            )[0]
 
         # Get ordered list of antenna names
         self.antenna_names = np.array(
@@ -488,9 +482,7 @@ class CalData:
         antpos_enu = pyuvdata.utils.ENU_from_ECEF(
             antpos_ecef, center_loc=metadata_reference.telescope.location
         )  # Convert to topocentric (East, North, Up or ENU) coords.
-        uvw_array = np.matmul(self.gains_exp_mat_1, antpos_enu) - np.matmul(
-            self.gains_exp_mat_2, antpos_enu
-        )
+        uvw_array = antpos_enu[self.ant1_inds, :] - antpos_enu[self.ant2_inds, :]
         self.uv_array = uvw_array[:, :2]
 
         # Get polarization ordering
@@ -564,9 +556,17 @@ class CalData:
                             | (metadata_reference.polarization_array == -8)
                         )[0]
                     for flag_ind in range(len(nan_gains[0])):
-                        flag_bls = np.logical_or(
-                            self.gains_exp_mat_1[:, nan_gains[0][flag_ind]],
-                            self.gains_exp_mat_2[:, nan_gains[0][flag_ind]],
+                        flag_bls = np.unique(
+                            np.concatenate(
+                                (
+                                    np.where(self.ant1_inds == nan_gains[0][flag_ind])[
+                                        0
+                                    ],
+                                    np.where(self.ant2_inds == nan_gains[0][flag_ind])[
+                                        0
+                                    ],
+                                )
+                            )
                         )
                         flag_freq = nan_gains[1][flag_ind]
                         for flag_pol in flag_pols:
@@ -654,8 +654,8 @@ class CalData:
             caldata_per_freq.visibility_weights = self.visibility_weights[
                 :, :, [freq_ind], :
             ]
-            caldata_per_freq.gains_exp_mat_1 = self.gains_exp_mat_1
-            caldata_per_freq.gains_exp_mat_2 = self.gains_exp_mat_2
+            caldata_per_freq.ant1_inds = self.ant1_inds
+            caldata_per_freq.ant2_inds = self.ant2_inds
             caldata_per_freq.gains_multiply_model = self.gains_multiply_model
             caldata_per_freq.antenna_names = self.antenna_names
             caldata_per_freq.antenna_numbers = self.antenna_numbers
@@ -717,8 +717,8 @@ class CalData:
             caldata_per_pol.visibility_weights = self.visibility_weights[
                 :, :, :, [sky_pol_ind]
             ]
-            caldata_per_pol.gains_exp_mat_1 = self.gains_exp_mat_1
-            caldata_per_pol.gains_exp_mat_2 = self.gains_exp_mat_2
+            caldata_per_pol.ant1_inds = self.ant1_inds
+            caldata_per_pol.ant2_inds = self.ant2_inds
             caldata_per_pol.gains_multiply_model = self.gains_multiply_model
             caldata_per_pol.antenna_names = self.antenna_names
             caldata_per_pol.antenna_numbers = self.antenna_numbers
@@ -794,22 +794,22 @@ class CalData:
 
         # Get flags from nan-ed gains and zeroed weights
         uvcal.flag_array = (np.isnan(self.gains))[:, :, np.newaxis, :]
-        # Flag antennas
-        antenna_weights = np.sum(
-            np.matmul(
-                self.gains_exp_mat_1.T,
-                self.visibility_weights[:, :, 0, 0].T,
-            )
-            + np.matmul(
-                self.gains_exp_mat_2.T,
-                self.visibility_weights[:, :, 0, 0].T,
-            ),
-            axis=1,
+        # Get flags from visibility_weights
+        antenna_weights = np.zeros(
+            (self.Ntimes, self.Nants, self.Nfreqs, self.N_vis_pols), dtype=float
         )
-        uvcal.flag_array[np.where(antenna_weights == 0)[0], :, :, :] = True
-        # Flag frequencies
-        freq_weights = np.sum(self.visibility_weights, axis=(0, 1, 3))
-        uvcal.flag_array[:, np.where(freq_weights == 0)[0], :, :] = True
+        for ant_ind in range(self.Nants):
+            antenna_weights[:, ant_ind, :, :] = np.sum(
+                self.visibility_weights[:, np.where(self.ant1_inds == ant_ind), :, :],
+                axis=1,
+            )
+            +np.sum(
+                self.visibility_weights[:, np.where(self.ant2_inds == ant_ind), :, :],
+                axis=1,
+            )
+        uvcal.flag_array[
+            np.where(np.transpose(antenna_weights, axes=(1, 2, 0, 3)) == 0)
+        ] = True
 
         try:
             uvcal.check()
@@ -1019,8 +1019,8 @@ class CalData:
                 flag_antenna_list.append(self.antenna_names[flag_antenna_inds])
 
                 for ant_ind in flag_antenna_inds:
-                    bl_inds_1 = np.where(self.gains_exp_mat_1[:, ant_ind])[0]
-                    bl_inds_2 = np.where(self.gains_exp_mat_2[:, ant_ind])[0]
+                    bl_inds_1 = np.where(self.ant1_inds == ant_ind)[0]
+                    bl_inds_2 = np.where(self.ant2_inds == ant_ind)[0]
                     if self.feed_polarization_array[pol_ind] == -5:
                         if -5 in self.vis_polarization_array:
                             vis_pol_ind = np.where(self.vis_polarization_array == -5)[0]

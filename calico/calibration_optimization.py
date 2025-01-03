@@ -56,8 +56,8 @@ def cost_skycal_wrapper(
                 caldata_obj.visibility_weights[:, :, freq_ind, vis_pol_ind],
                 (caldata_obj.Ntimes, caldata_obj.Nbls),
             ),
-            caldata_obj.gains_exp_mat_1,
-            caldata_obj.gains_exp_mat_2,
+            caldata_obj.ant1_inds,
+            caldata_obj.ant2_inds,
             caldata_obj.lambda_val,
         )
     else:
@@ -75,8 +75,8 @@ def cost_skycal_wrapper(
                 caldata_obj.visibility_weights[:, :, freq_ind, vis_pol_ind],
                 (caldata_obj.Ntimes, caldata_obj.Nbls),
             ),
-            caldata_obj.gains_exp_mat_1,
-            caldata_obj.gains_exp_mat_2,
+            caldata_obj.ant1_inds,
+            caldata_obj.ant2_inds,
             caldata_obj.lambda_val,
         )
     return cost
@@ -135,8 +135,8 @@ def jacobian_skycal_wrapper(
                 caldata_obj.visibility_weights[:, :, freq_ind, vis_pol_ind],
                 (caldata_obj.Ntimes, caldata_obj.Nbls),
             ),
-            caldata_obj.gains_exp_mat_1,
-            caldata_obj.gains_exp_mat_2,
+            caldata_obj.ant1_inds,
+            caldata_obj.ant2_inds,
             caldata_obj.lambda_val,
         )
     else:
@@ -154,8 +154,8 @@ def jacobian_skycal_wrapper(
                 caldata_obj.visibility_weights[:, :, freq_ind, vis_pol_ind],
                 (caldata_obj.Ntimes, caldata_obj.Nbls),
             ),
-            caldata_obj.gains_exp_mat_1,
-            caldata_obj.gains_exp_mat_2,
+            caldata_obj.ant1_inds,
+            caldata_obj.ant2_inds,
             caldata_obj.lambda_val,
         )
     jac_flattened = np.stack(
@@ -221,8 +221,8 @@ def hessian_skycal_wrapper(
                 caldata_obj.visibility_weights[:, :, freq_ind, vis_pol_ind],
                 (caldata_obj.Ntimes, caldata_obj.Nbls),
             ),
-            caldata_obj.gains_exp_mat_1,
-            caldata_obj.gains_exp_mat_2,
+            caldata_obj.ant1_inds,
+            caldata_obj.ant2_inds,
             caldata_obj.lambda_val,
         )
     else:
@@ -246,8 +246,8 @@ def hessian_skycal_wrapper(
                 caldata_obj.visibility_weights[:, :, freq_ind, vis_pol_ind],
                 (caldata_obj.Ntimes, caldata_obj.Nbls),
             ),
-            caldata_obj.gains_exp_mat_1,
-            caldata_obj.gains_exp_mat_2,
+            caldata_obj.ant1_inds,
+            caldata_obj.ant2_inds,
             caldata_obj.lambda_val,
         )
     hess_flattened = np.full(
@@ -662,9 +662,9 @@ def run_skycal_optimization_per_pol_single_freq(
             vis_weights_summed = np.sum(
                 caldata_obj.visibility_weights[:, :, freq_ind, feed_pol_ind], axis=0
             )  # Sum over times
-            weight_per_ant = np.matmul(
-                caldata_obj.gains_exp_mat_1.T, vis_weights_summed
-            ) + np.matmul(caldata_obj.gains_exp_mat_2.T, vis_weights_summed)
+            weight_per_ant = np.bincount(
+                caldata_obj.ant1_inds, weights=vis_weights_summed
+            ) + np.bincount(caldata_obj.ant2_inds, weights=vis_weights_summed)
             ant_inds = np.where(weight_per_ant > 0.0)[0]
 
             gains_init_flattened = np.stack(
@@ -734,8 +734,8 @@ def run_skycal_optimization_per_pol_single_freq(
                 gains_fit,
                 caldata_obj.data_visibilities[:, :, freq_ind, crosspol_indices],
                 caldata_obj.visibility_weights[:, :, freq_ind, crosspol_indices],
-                caldata_obj.gains_exp_mat_1,
-                caldata_obj.gains_exp_mat_2,
+                caldata_obj.ant1_inds,
+                caldata_obj.ant2_inds,
             )
         elif crosspol_phase_strategy.lower() == "crosspol model":
             crosspol_phase = cost_function_calculations.set_crosspol_phase(
@@ -743,8 +743,8 @@ def run_skycal_optimization_per_pol_single_freq(
                 caldata_obj.model_visibilities[:, :, freq_ind, crosspol_indices],
                 caldata_obj.data_visibilities[:, :, freq_ind, crosspol_indices],
                 caldata_obj.visibility_weights[:, :, freq_ind, crosspol_indices],
-                caldata_obj.gains_exp_mat_1,
-                caldata_obj.gains_exp_mat_2,
+                caldata_obj.ant1_inds,
+                caldata_obj.ant2_inds,
             )
         else:
             print(
