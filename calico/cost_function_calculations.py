@@ -1,5 +1,6 @@
 import numpy as np
 import sys
+import utils
 
 
 def cost_skycal(
@@ -99,14 +100,22 @@ def jacobian_skycal(
         visibility_weights * gains_expanded_2 * np.conj(data_visibilities) * res_vec,
         axis=0,
     )
-    term1 = np.bincount(
-        ant1_inds, weights=term1
-    )  # fix this to work with multi-dimensional weights
+    print(term1)
+    term1 = utils.bincount_multidim(
+        ant1_inds,
+        weights=term1,
+        minlength=np.max([np.max(ant1_inds), np.max(ant2_inds)]) + 1,
+    )
+    print(term1)
     term2 = np.sum(
         visibility_weights * gains_expanded_1 * data_visibilities * np.conj(res_vec),
         axis=0,
     )
-    term2 = np.bincount(ant2_inds, weights=term2)
+    term2 = utils.bincount_multidim(
+        ant2_inds,
+        weights=term2,
+        minlength=np.max([np.max(ant1_inds), np.max(ant2_inds)]) + 1,
+    )
 
     jac = 2 * (term1 + term2)
 
@@ -121,8 +130,8 @@ def jacobian_skycal(
 
 def reformat_baselines_to_antenna_matrix(
     bl_array,
-    gains_exp_mat_1,
-    gains_exp_mat_2,
+    ant1_inds,
+    ant2_inds,
     Nants,
     Nbls,
 ):
@@ -133,10 +142,10 @@ def reformat_baselines_to_antenna_matrix(
     ----------
     bl_array : array of float or complex
         Shape (Nbls, ...,).
-    gains_exp_mat_1 : array of int
-        Shape (Nbls, Nants,).
-    gains_exp_mat_2 : array of int
-        Shape (Nbls, Nants,).
+    ant1_inds : array of int
+        Shape (Nbls,).
+    ant2_inds : array of int
+        Shape (Nbls,).
     Nants : int
         Number of antennas.
     Nbls : int
@@ -157,13 +166,10 @@ def reformat_baselines_to_antenna_matrix(
         Nants,
         axis=0,
     )
-    antenna_numbers = np.arange(Nants)
-    antenna1_num = np.matmul(gains_exp_mat_1, antenna_numbers)
-    antenna2_num = np.matmul(gains_exp_mat_2, antenna_numbers)
     for bl_ind in range(Nbls):
         antenna_matrix[
-            antenna1_num[bl_ind],
-            antenna2_num[bl_ind],
+            ant1_inds[bl_ind],
+            ant2_inds[bl_ind],
         ] = bl_array[
             bl_ind,
         ]
@@ -177,8 +183,8 @@ def hessian_skycal(
     model_visibilities,
     data_visibilities,
     visibility_weights,
-    gains_exp_mat_1,
-    gains_exp_mat_2,
+    ant1_inds,
+    ant2_inds,
     lambda_val,
 ):
     """
@@ -198,10 +204,10 @@ def hessian_skycal(
         Shape (Ntimes, Nbls,).
     visibility_weights : array of float
         Shape (Ntimes, Nbls,).
-    gains_exp_mat_1 : array of int
-        Shape (Nbls, Nants,).
-    gains_exp_mat_2 : array of int
-        Shape (Nbls, Nants,).
+    ant1_inds : array of int
+        Shape (Nbls,).
+    ant2_inds : array of int
+        Shape (Nbls,).
     lambda_val : float
         Weight of the phase regularization term; must be positive.
 
@@ -219,8 +225,8 @@ def hessian_skycal(
         function. Shape (Nants, Nants,).
     """
 
-    gains_expanded_1 = np.matmul(gains_exp_mat_1, gains)
-    gains_expanded_2 = np.matmul(gains_exp_mat_2, gains)
+    gains_expanded_1 = gains[ant1_inds]
+    gains_expanded_2 = gains[ant2_inds]
     data_squared = np.sum(visibility_weights * np.abs(data_visibilities) ** 2.0, axis=0)
     data_times_model = np.sum(
         visibility_weights * model_visibilities * np.conj(data_visibilities), axis=0
@@ -251,8 +257,8 @@ def hessian_skycal(
 
     hess_components = reformat_baselines_to_antenna_matrix(
         hess_components,
-        gains_exp_mat_1,
-        gains_exp_mat_2,
+        ant1_inds,
+        ant2_inds,
         Nants,
         Nbls,
     )
@@ -262,8 +268,16 @@ def hessian_skycal(
 
     # Calculate the antenna diagonals
     hess_diag = 2 * (
-        np.matmul(gains_exp_mat_1.T, np.abs(gains_expanded_2) ** 2.0 * data_squared)
-        + np.matmul(gains_exp_mat_2.T, np.abs(gains_expanded_1) ** 2.0 * data_squared)
+        utils.bincount_multidim(
+            ant1_inds,
+            weights=np.abs(gains_expanded_2) ** 2.0 * data_squared,
+            minlength=Nants,
+        )
+        + utils.bincount_multidim(
+            ant2_inds,
+            weights=np.abs(gains_expanded_1) ** 2.0 * data_squared,
+            minlength=Nants,
+        )
     )
     np.fill_diagonal(hess_real_real, hess_diag)
     np.fill_diagonal(hess_imag_imag, hess_diag)
@@ -304,8 +318,8 @@ def set_crosspol_phase(
     crosspol_model_visibilities,
     crosspol_data_visibilities,
     crosspol_visibility_weights,
-    gains_exp_mat_1,
-    gains_exp_mat_2,
+    ant1_inds,
+    ant2_inds,
 ):
     """
     Calculate the cross-polarization phase between the P and Q gains. This
@@ -330,10 +344,10 @@ def set_crosspol_phase(
         visibilities.
     crosspol_visibility_weights : array of float
         Shape (Ntimes, Nbls, 2).
-    gains_exp_mat_1 : array of int
-        Shape (Nbls, Nants,).
-    gains_exp_mat_2 : array of int
-        Shape (Nbls, Nants,).
+    ant1_inds : array of int
+        Shape (Nbls,).
+    ant2_inds : array of int
+        Shape (Nbls,).
 
     Returns
     -------
@@ -341,8 +355,8 @@ def set_crosspol_phase(
         Cross-polarization phase, in radians.
     """
 
-    gains_expanded_1 = np.matmul(gains_exp_mat_1, gains)[np.newaxis, :, :]
-    gains_expanded_2 = np.matmul(gains_exp_mat_2, gains)[np.newaxis, :, :]
+    gains_expanded_1 = gains[np.newaxis, ant1_inds, :]
+    gains_expanded_2 = gains[np.newaxis, ant2_inds, :]
     term1 = np.nansum(
         crosspol_visibility_weights[:, :, 0]
         * np.conj(crosspol_model_visibilities[:, :, 0])
@@ -366,8 +380,8 @@ def set_crosspol_phase_pseudoV(
     gains,
     crosspol_data_visibilities,
     crosspol_visibility_weights,
-    gains_exp_mat_1,
-    gains_exp_mat_2,
+    ant1_inds,
+    ant2_inds,
 ):
     """
     Calculate the cross-polarization phase between the P and Q gains. This
@@ -387,10 +401,10 @@ def set_crosspol_phase_pseudoV(
         visibilities.
     crosspol_visibility_weights : array of float
         Shape (Ntimes, Nbls, 2).
-    gains_exp_mat_1 : array of int
-        Shape (Nbls, Nants,).
-    gains_exp_mat_2 : array of int
-        Shape (Nbls, Nants,).
+    ant1_inds : array of int
+        Shape (Nbls,).
+    ant2_inds : array of int
+        Shape (Nbls,).
 
     Returns
     -------
@@ -398,8 +412,8 @@ def set_crosspol_phase_pseudoV(
         Cross-polarization phase, in radians.
     """
 
-    gains_expanded_1 = np.matmul(gains_exp_mat_1, gains)[np.newaxis, :, :]
-    gains_expanded_2 = np.matmul(gains_exp_mat_2, gains)[np.newaxis, :, :]
+    gains_expanded_1 = gains[np.newaxis, ant1_inds, :]
+    gains_expanded_2 = gains[np.newaxis, ant2_inds, :]
     crosspol_data_visibilities_calibrated = crosspol_data_visibilities
     crosspol_data_visibilities_calibrated[:, :, 0] *= gains_expanded_1[
         :, :, 0

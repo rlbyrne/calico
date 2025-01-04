@@ -32,8 +32,8 @@ class TestStringMethods(unittest.TestCase):
             caldata_obj.model_visibilities[:, :, test_freq_ind, test_pol_ind],
             caldata_obj.data_visibilities[:, :, test_freq_ind, test_pol_ind],
             caldata_obj.visibility_weights[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.gains_exp_mat_1,
-            caldata_obj.gains_exp_mat_2,
+            caldata_obj.ant1_inds,
+            caldata_obj.ant2_inds,
             caldata_obj.lambda_val,
         )
 
@@ -77,8 +77,8 @@ class TestStringMethods(unittest.TestCase):
             caldata_obj.model_visibilities[:, :, test_freq_ind, test_pol_ind],
             caldata_obj.data_visibilities[:, :, test_freq_ind, test_pol_ind],
             caldata_obj.visibility_weights[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.gains_exp_mat_1,
-            caldata_obj.gains_exp_mat_2,
+            caldata_obj.ant1_inds,
+            caldata_obj.ant2_inds,
             caldata_obj.lambda_val,
         )
         gains_init1 = np.copy(gains_init[:, test_freq_ind])
@@ -88,8 +88,8 @@ class TestStringMethods(unittest.TestCase):
             caldata_obj.model_visibilities[:, :, test_freq_ind, test_pol_ind],
             caldata_obj.data_visibilities[:, :, test_freq_ind, test_pol_ind],
             caldata_obj.visibility_weights[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.gains_exp_mat_1,
-            caldata_obj.gains_exp_mat_2,
+            caldata_obj.ant1_inds,
+            caldata_obj.ant2_inds,
             caldata_obj.lambda_val,
         )
         jac = cost_function_calculations.jacobian_skycal(
@@ -97,8 +97,8 @@ class TestStringMethods(unittest.TestCase):
             caldata_obj.model_visibilities[:, :, test_freq_ind, test_pol_ind],
             caldata_obj.data_visibilities[:, :, test_freq_ind, test_pol_ind],
             caldata_obj.visibility_weights[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.gains_exp_mat_1,
-            caldata_obj.gains_exp_mat_2,
+            caldata_obj.ant1_inds,
+            caldata_obj.ant2_inds,
             caldata_obj.lambda_val,
         )
 
@@ -148,8 +148,8 @@ class TestStringMethods(unittest.TestCase):
             caldata_obj.model_visibilities[:, :, test_freq_ind, test_pol_ind],
             caldata_obj.data_visibilities[:, :, test_freq_ind, test_pol_ind],
             caldata_obj.visibility_weights[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.gains_exp_mat_1,
-            caldata_obj.gains_exp_mat_2,
+            caldata_obj.ant1_inds,
+            caldata_obj.ant2_inds,
             caldata_obj.lambda_val,
         )
         gains_init1 = np.copy(gains_init[:, test_freq_ind])
@@ -159,8 +159,8 @@ class TestStringMethods(unittest.TestCase):
             caldata_obj.model_visibilities[:, :, test_freq_ind, test_pol_ind],
             caldata_obj.data_visibilities[:, :, test_freq_ind, test_pol_ind],
             caldata_obj.visibility_weights[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.gains_exp_mat_1,
-            caldata_obj.gains_exp_mat_2,
+            caldata_obj.ant1_inds,
+            caldata_obj.ant2_inds,
             caldata_obj.lambda_val,
         )
         jac = cost_function_calculations.jacobian_skycal(
@@ -168,8 +168,8 @@ class TestStringMethods(unittest.TestCase):
             caldata_obj.model_visibilities[:, :, test_freq_ind, test_pol_ind],
             caldata_obj.data_visibilities[:, :, test_freq_ind, test_pol_ind],
             caldata_obj.visibility_weights[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.gains_exp_mat_1,
-            caldata_obj.gains_exp_mat_2,
+            caldata_obj.ant1_inds,
+            caldata_obj.ant2_inds,
             caldata_obj.lambda_val,
         )
 
@@ -223,8 +223,8 @@ class TestStringMethods(unittest.TestCase):
             caldata_obj.model_visibilities[:, :, test_freq_ind, test_pol_ind],
             caldata_obj.data_visibilities[:, :, test_freq_ind, test_pol_ind],
             caldata_obj.visibility_weights[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.gains_exp_mat_1,
-            caldata_obj.gains_exp_mat_2,
+            caldata_obj.ant1_inds,
+            caldata_obj.ant2_inds,
             caldata_obj.lambda_val,
         )
         gains_init1 = np.copy(gains_init[:, test_freq_ind])
@@ -234,8 +234,8 @@ class TestStringMethods(unittest.TestCase):
             caldata_obj.model_visibilities[:, :, test_freq_ind, test_pol_ind],
             caldata_obj.data_visibilities[:, :, test_freq_ind, test_pol_ind],
             caldata_obj.visibility_weights[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.gains_exp_mat_1,
-            caldata_obj.gains_exp_mat_2,
+            caldata_obj.ant1_inds,
+            caldata_obj.ant2_inds,
             caldata_obj.lambda_val,
         )
         jac = cost_function_calculations.jacobian_skycal(
@@ -243,8 +243,8 @@ class TestStringMethods(unittest.TestCase):
             caldata_obj.model_visibilities[:, :, test_freq_ind, test_pol_ind],
             caldata_obj.data_visibilities[:, :, test_freq_ind, test_pol_ind],
             caldata_obj.visibility_weights[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.gains_exp_mat_1,
-            caldata_obj.gains_exp_mat_2,
+            caldata_obj.ant1_inds,
+            caldata_obj.ant2_inds,
             caldata_obj.lambda_val,
         )
 
@@ -298,8 +298,8 @@ class TestStringMethods(unittest.TestCase):
             caldata_obj.model_visibilities[:, :, test_freq_ind, test_pol_ind],
             caldata_obj.data_visibilities[:, :, test_freq_ind, test_pol_ind],
             caldata_obj.visibility_weights[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.gains_exp_mat_1,
-            caldata_obj.gains_exp_mat_2,
+            caldata_obj.ant1_inds,
+            caldata_obj.ant2_inds,
             caldata_obj.lambda_val,
         )
         gains_init1 = np.copy(gains_init[:, test_freq_ind])
@@ -309,8 +309,8 @@ class TestStringMethods(unittest.TestCase):
             caldata_obj.model_visibilities[:, :, test_freq_ind, test_pol_ind],
             caldata_obj.data_visibilities[:, :, test_freq_ind, test_pol_ind],
             caldata_obj.visibility_weights[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.gains_exp_mat_1,
-            caldata_obj.gains_exp_mat_2,
+            caldata_obj.ant1_inds,
+            caldata_obj.ant2_inds,
             caldata_obj.lambda_val,
         )
         jac = cost_function_calculations.jacobian_skycal(
@@ -318,8 +318,8 @@ class TestStringMethods(unittest.TestCase):
             caldata_obj.model_visibilities[:, :, test_freq_ind, test_pol_ind],
             caldata_obj.data_visibilities[:, :, test_freq_ind, test_pol_ind],
             caldata_obj.visibility_weights[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.gains_exp_mat_1,
-            caldata_obj.gains_exp_mat_2,
+            caldata_obj.ant1_inds,
+            caldata_obj.ant2_inds,
             caldata_obj.lambda_val,
         )
 
@@ -370,8 +370,8 @@ class TestStringMethods(unittest.TestCase):
             caldata_obj.model_visibilities[:, :, test_freq_ind, test_pol_ind],
             caldata_obj.data_visibilities[:, :, test_freq_ind, test_pol_ind],
             caldata_obj.visibility_weights[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.gains_exp_mat_1,
-            caldata_obj.gains_exp_mat_2,
+            caldata_obj.ant1_inds,
+            caldata_obj.ant2_inds,
             caldata_obj.lambda_val,
         )
         gains_init1 = np.copy(gains_init[:, test_freq_ind])
@@ -381,8 +381,8 @@ class TestStringMethods(unittest.TestCase):
             caldata_obj.model_visibilities[:, :, test_freq_ind, test_pol_ind],
             caldata_obj.data_visibilities[:, :, test_freq_ind, test_pol_ind],
             caldata_obj.visibility_weights[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.gains_exp_mat_1,
-            caldata_obj.gains_exp_mat_2,
+            caldata_obj.ant1_inds,
+            caldata_obj.ant2_inds,
             caldata_obj.lambda_val,
         )
         (
@@ -396,8 +396,8 @@ class TestStringMethods(unittest.TestCase):
             caldata_obj.model_visibilities[:, :, test_freq_ind, test_pol_ind],
             caldata_obj.data_visibilities[:, :, test_freq_ind, test_pol_ind],
             caldata_obj.visibility_weights[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.gains_exp_mat_1,
-            caldata_obj.gains_exp_mat_2,
+            caldata_obj.ant1_inds,
+            caldata_obj.ant2_inds,
             caldata_obj.lambda_val,
         )
 
@@ -458,8 +458,8 @@ class TestStringMethods(unittest.TestCase):
             caldata_obj.model_visibilities[:, :, test_freq_ind, test_pol_ind],
             caldata_obj.data_visibilities[:, :, test_freq_ind, test_pol_ind],
             caldata_obj.visibility_weights[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.gains_exp_mat_1,
-            caldata_obj.gains_exp_mat_2,
+            caldata_obj.ant1_inds,
+            caldata_obj.ant2_inds,
             caldata_obj.lambda_val,
         )
         gains_init1 = np.copy(gains_init[:, test_freq_ind])
@@ -469,8 +469,8 @@ class TestStringMethods(unittest.TestCase):
             caldata_obj.model_visibilities[:, :, test_freq_ind, test_pol_ind],
             caldata_obj.data_visibilities[:, :, test_freq_ind, test_pol_ind],
             caldata_obj.visibility_weights[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.gains_exp_mat_1,
-            caldata_obj.gains_exp_mat_2,
+            caldata_obj.ant1_inds,
+            caldata_obj.ant2_inds,
             caldata_obj.lambda_val,
         )
         (
@@ -484,8 +484,8 @@ class TestStringMethods(unittest.TestCase):
             caldata_obj.model_visibilities[:, :, test_freq_ind, test_pol_ind],
             caldata_obj.data_visibilities[:, :, test_freq_ind, test_pol_ind],
             caldata_obj.visibility_weights[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.gains_exp_mat_1,
-            caldata_obj.gains_exp_mat_2,
+            caldata_obj.ant1_inds,
+            caldata_obj.ant2_inds,
             caldata_obj.lambda_val,
         )
 
@@ -546,8 +546,8 @@ class TestStringMethods(unittest.TestCase):
             caldata_obj.model_visibilities[:, :, test_freq_ind, test_pol_ind],
             caldata_obj.data_visibilities[:, :, test_freq_ind, test_pol_ind],
             caldata_obj.visibility_weights[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.gains_exp_mat_1,
-            caldata_obj.gains_exp_mat_2,
+            caldata_obj.ant1_inds,
+            caldata_obj.ant2_inds,
             caldata_obj.lambda_val,
         )
         gains_init1 = np.copy(gains_init[:, test_freq_ind])
@@ -557,8 +557,8 @@ class TestStringMethods(unittest.TestCase):
             caldata_obj.model_visibilities[:, :, test_freq_ind, test_pol_ind],
             caldata_obj.data_visibilities[:, :, test_freq_ind, test_pol_ind],
             caldata_obj.visibility_weights[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.gains_exp_mat_1,
-            caldata_obj.gains_exp_mat_2,
+            caldata_obj.ant1_inds,
+            caldata_obj.ant2_inds,
             caldata_obj.lambda_val,
         )
         (
@@ -572,8 +572,8 @@ class TestStringMethods(unittest.TestCase):
             caldata_obj.model_visibilities[:, :, test_freq_ind, test_pol_ind],
             caldata_obj.data_visibilities[:, :, test_freq_ind, test_pol_ind],
             caldata_obj.visibility_weights[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.gains_exp_mat_1,
-            caldata_obj.gains_exp_mat_2,
+            caldata_obj.ant1_inds,
+            caldata_obj.ant2_inds,
             caldata_obj.lambda_val,
         )
 
@@ -635,8 +635,8 @@ class TestStringMethods(unittest.TestCase):
             caldata_obj.model_visibilities[:, :, test_freq_ind, test_pol_ind],
             caldata_obj.data_visibilities[:, :, test_freq_ind, test_pol_ind],
             caldata_obj.visibility_weights[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.gains_exp_mat_1,
-            caldata_obj.gains_exp_mat_2,
+            caldata_obj.ant1_inds,
+            caldata_obj.ant2_inds,
             caldata_obj.lambda_val,
         )
         gains_init1 = np.copy(gains_init[:, test_freq_ind])
@@ -646,8 +646,8 @@ class TestStringMethods(unittest.TestCase):
             caldata_obj.model_visibilities[:, :, test_freq_ind, test_pol_ind],
             caldata_obj.data_visibilities[:, :, test_freq_ind, test_pol_ind],
             caldata_obj.visibility_weights[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.gains_exp_mat_1,
-            caldata_obj.gains_exp_mat_2,
+            caldata_obj.ant1_inds,
+            caldata_obj.ant2_inds,
             caldata_obj.lambda_val,
         )
         (
@@ -661,8 +661,8 @@ class TestStringMethods(unittest.TestCase):
             caldata_obj.model_visibilities[:, :, test_freq_ind, test_pol_ind],
             caldata_obj.data_visibilities[:, :, test_freq_ind, test_pol_ind],
             caldata_obj.visibility_weights[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.gains_exp_mat_1,
-            caldata_obj.gains_exp_mat_2,
+            caldata_obj.ant1_inds,
+            caldata_obj.ant2_inds,
             caldata_obj.lambda_val,
         )
 
@@ -730,8 +730,8 @@ class TestStringMethods(unittest.TestCase):
             caldata_obj.model_visibilities[:, :, test_freq_ind, test_pol_ind],
             caldata_obj.data_visibilities[:, :, test_freq_ind, test_pol_ind],
             caldata_obj.visibility_weights[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.gains_exp_mat_1,
-            caldata_obj.gains_exp_mat_2,
+            caldata_obj.ant1_inds,
+            caldata_obj.ant2_inds,
             caldata_obj.lambda_val,
         )
         gains_init1 = np.copy(gains_init[:, test_freq_ind])
@@ -741,8 +741,8 @@ class TestStringMethods(unittest.TestCase):
             caldata_obj.model_visibilities[:, :, test_freq_ind, test_pol_ind],
             caldata_obj.data_visibilities[:, :, test_freq_ind, test_pol_ind],
             caldata_obj.visibility_weights[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.gains_exp_mat_1,
-            caldata_obj.gains_exp_mat_2,
+            caldata_obj.ant1_inds,
+            caldata_obj.ant2_inds,
             caldata_obj.lambda_val,
         )
         (
@@ -756,8 +756,8 @@ class TestStringMethods(unittest.TestCase):
             caldata_obj.model_visibilities[:, :, test_freq_ind, test_pol_ind],
             caldata_obj.data_visibilities[:, :, test_freq_ind, test_pol_ind],
             caldata_obj.visibility_weights[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.gains_exp_mat_1,
-            caldata_obj.gains_exp_mat_2,
+            caldata_obj.ant1_inds,
+            caldata_obj.ant2_inds,
             caldata_obj.lambda_val,
         )
 
@@ -824,8 +824,8 @@ class TestStringMethods(unittest.TestCase):
             caldata_obj.model_visibilities[:, :, test_freq_ind, test_pol_ind],
             caldata_obj.data_visibilities[:, :, test_freq_ind, test_pol_ind],
             caldata_obj.visibility_weights[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.gains_exp_mat_1,
-            caldata_obj.gains_exp_mat_2,
+            caldata_obj.ant1_inds,
+            caldata_obj.ant2_inds,
             caldata_obj.lambda_val,
         )
         gains_init1 = np.copy(gains_init[:, test_freq_ind])
@@ -835,8 +835,8 @@ class TestStringMethods(unittest.TestCase):
             caldata_obj.model_visibilities[:, :, test_freq_ind, test_pol_ind],
             caldata_obj.data_visibilities[:, :, test_freq_ind, test_pol_ind],
             caldata_obj.visibility_weights[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.gains_exp_mat_1,
-            caldata_obj.gains_exp_mat_2,
+            caldata_obj.ant1_inds,
+            caldata_obj.ant2_inds,
             caldata_obj.lambda_val,
         )
         (
@@ -850,8 +850,8 @@ class TestStringMethods(unittest.TestCase):
             caldata_obj.model_visibilities[:, :, test_freq_ind, test_pol_ind],
             caldata_obj.data_visibilities[:, :, test_freq_ind, test_pol_ind],
             caldata_obj.visibility_weights[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.gains_exp_mat_1,
-            caldata_obj.gains_exp_mat_2,
+            caldata_obj.ant1_inds,
+            caldata_obj.ant2_inds,
             caldata_obj.lambda_val,
         )
 
@@ -916,8 +916,8 @@ class TestStringMethods(unittest.TestCase):
             caldata_obj.model_visibilities[:, :, test_freq_ind, test_pol_ind],
             caldata_obj.data_visibilities[:, :, test_freq_ind, test_pol_ind],
             caldata_obj.visibility_weights[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.gains_exp_mat_1,
-            caldata_obj.gains_exp_mat_2,
+            caldata_obj.ant1_inds,
+            caldata_obj.ant2_inds,
             caldata_obj.lambda_val,
         )
         gains_init1 = np.copy(gains_init[:, test_freq_ind])
@@ -927,8 +927,8 @@ class TestStringMethods(unittest.TestCase):
             caldata_obj.model_visibilities[:, :, test_freq_ind, test_pol_ind],
             caldata_obj.data_visibilities[:, :, test_freq_ind, test_pol_ind],
             caldata_obj.visibility_weights[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.gains_exp_mat_1,
-            caldata_obj.gains_exp_mat_2,
+            caldata_obj.ant1_inds,
+            caldata_obj.ant2_inds,
             caldata_obj.lambda_val,
         )
         (
@@ -942,8 +942,8 @@ class TestStringMethods(unittest.TestCase):
             caldata_obj.model_visibilities[:, :, test_freq_ind, test_pol_ind],
             caldata_obj.data_visibilities[:, :, test_freq_ind, test_pol_ind],
             caldata_obj.visibility_weights[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.gains_exp_mat_1,
-            caldata_obj.gains_exp_mat_2,
+            caldata_obj.ant1_inds,
+            caldata_obj.ant2_inds,
             caldata_obj.lambda_val,
         )
 
@@ -1009,8 +1009,8 @@ class TestStringMethods(unittest.TestCase):
             caldata_obj.model_visibilities[:, :, test_freq_ind, test_pol_ind],
             caldata_obj.data_visibilities[:, :, test_freq_ind, test_pol_ind],
             caldata_obj.visibility_weights[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.gains_exp_mat_1,
-            caldata_obj.gains_exp_mat_2,
+            caldata_obj.ant1_inds,
+            caldata_obj.ant2_inds,
             caldata_obj.lambda_val,
         )
         gains_init1 = np.copy(gains_init[:, test_freq_ind])
@@ -1020,8 +1020,8 @@ class TestStringMethods(unittest.TestCase):
             caldata_obj.model_visibilities[:, :, test_freq_ind, test_pol_ind],
             caldata_obj.data_visibilities[:, :, test_freq_ind, test_pol_ind],
             caldata_obj.visibility_weights[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.gains_exp_mat_1,
-            caldata_obj.gains_exp_mat_2,
+            caldata_obj.ant1_inds,
+            caldata_obj.ant2_inds,
             caldata_obj.lambda_val,
         )
         (
@@ -1035,8 +1035,8 @@ class TestStringMethods(unittest.TestCase):
             caldata_obj.model_visibilities[:, :, test_freq_ind, test_pol_ind],
             caldata_obj.data_visibilities[:, :, test_freq_ind, test_pol_ind],
             caldata_obj.visibility_weights[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.gains_exp_mat_1,
-            caldata_obj.gains_exp_mat_2,
+            caldata_obj.ant1_inds,
+            caldata_obj.ant2_inds,
             caldata_obj.lambda_val,
         )
 
@@ -1207,8 +1207,8 @@ class TestStringMethods(unittest.TestCase):
         antenna_ind = np.where(caldata_obj.antenna_names == perturb_antenna_name)
         baseline_inds = np.where(
             np.logical_or(
-                caldata_obj.gains_exp_mat_1[:, antenna_ind],
-                caldata_obj.gains_exp_mat_1[:, antenna_ind],
+                caldata_obj.ant1_inds == antenna_ind,
+                caldata_obj.ant2_inds == antenna_ind,
             )
         )[0]
 
@@ -1324,8 +1324,8 @@ class TestStringMethods(unittest.TestCase):
             caldata_obj_new.model_visibilities[:, :, 0, 2:],
             caldata_obj_new.data_visibilities[:, :, 0, 2:],
             caldata_obj_new.visibility_weights[:, :, 0, 2:],
-            caldata_obj_new.gains_exp_mat_1,
-            caldata_obj_new.gains_exp_mat_2,
+            caldata_obj_new.ant1_inds,
+            caldata_obj_new.ant2_inds,
         )
 
         np.testing.assert_allclose(crosspol_phase_new, crosspol_phase, atol=1e-8)
@@ -1379,8 +1379,8 @@ class TestStringMethods(unittest.TestCase):
             caldata_obj_new.gains[:, 0, :],
             caldata_obj_new.data_visibilities[:, :, 0, 2:],
             caldata_obj_new.visibility_weights[:, :, 0, 2:],
-            caldata_obj_new.gains_exp_mat_1,
-            caldata_obj_new.gains_exp_mat_2,
+            caldata_obj_new.ant1_inds,
+            caldata_obj_new.ant2_inds,
         )
 
         np.testing.assert_allclose(crosspol_phase_new, crosspol_phase, atol=1e-8)
@@ -2503,7 +2503,6 @@ class TestStringMethods(unittest.TestCase):
             lambda_val=100.0,
             gains_multiply_model=True,
         )
-        print(f"Gains initial: {caldata_obj.gains}")
 
         # Unflag all
         caldata_obj.visibility_weights = np.ones(
@@ -2520,7 +2519,6 @@ class TestStringMethods(unittest.TestCase):
             xtol=1e-8,
             parallel=False,
         )
-        print(f"Gains fit final: {caldata_obj.gains}")
 
         np.testing.assert_allclose(
             np.abs(caldata_obj.gains),

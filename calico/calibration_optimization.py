@@ -663,8 +663,14 @@ def run_skycal_optimization_per_pol_single_freq(
                 caldata_obj.visibility_weights[:, :, freq_ind, feed_pol_ind], axis=0
             )  # Sum over times
             weight_per_ant = np.bincount(
-                caldata_obj.ant1_inds, weights=vis_weights_summed
-            ) + np.bincount(caldata_obj.ant2_inds, weights=vis_weights_summed)
+                caldata_obj.ant1_inds,
+                weights=vis_weights_summed,
+                minlength=caldata_obj.Nants,
+            ) + np.bincount(
+                caldata_obj.ant2_inds,
+                weights=vis_weights_summed,
+                minlength=caldata_obj.Nants,
+            )
             ant_inds = np.where(weight_per_ant > 0.0)[0]
 
             gains_init_flattened = np.stack(
