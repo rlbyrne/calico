@@ -1236,7 +1236,7 @@ class TestStringMethods(unittest.TestCase):
             return_antenna_flag_list=True,
         )
 
-        np.testing.assert_equal(flag_ant_list[0][0], perturb_antenna_name)
+        np.testing.assert_equal(flag_ant_list[0], perturb_antenna_name)
 
     def test_per_ant_cost_calc(self):
 

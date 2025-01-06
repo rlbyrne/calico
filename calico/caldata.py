@@ -794,22 +794,51 @@ class CalData:
 
         # Get flags from nan-ed gains and zeroed weights
         uvcal.flag_array = (np.isnan(self.gains))[:, :, np.newaxis, :]
+
         # Get flags from visibility_weights
         antenna_weights = np.zeros(
-            (self.Ntimes, self.Nants, self.Nfreqs, self.N_vis_pols), dtype=float
+            (self.Nants, self.Nfreqs, self.N_feed_pols), dtype=float
         )
         for ant_ind in range(self.Nants):
-            antenna_weights[:, ant_ind, :, :] = np.sum(
-                self.visibility_weights[:, np.where(self.ant1_inds == ant_ind), :, :],
-                axis=1,
-            )
-            +np.sum(
-                self.visibility_weights[:, np.where(self.ant2_inds == ant_ind), :, :],
-                axis=1,
-            )
-        uvcal.flag_array[
-            np.where(np.transpose(antenna_weights, axes=(1, 2, 0, 3)) == 0)
-        ] = True
+            for pol_ind in range(self.N_feed_pols):
+                if self.feed_polarization_array[pol_ind] == -5:
+                    use_vis_pol_inds_ant1 = np.where(
+                        (self.vis_polarization_array == -5)
+                        | (self.vis_polarization_array == -7)
+                    )[0]
+                    use_vis_pol_inds_ant2 = np.where(
+                        (self.vis_polarization_array == -5)
+                        | (self.vis_polarization_array == -8)
+                    )[0]
+                elif self.feed_polarization_array[pol_ind] == -6:
+                    use_vis_pol_inds_ant1 = np.where(
+                        (self.vis_polarization_array == -6)
+                        | (self.vis_polarization_array == -8)
+                    )[0]
+                    use_vis_pol_inds_ant2 = np.where(
+                        (self.vis_polarization_array == -6)
+                        | (self.vis_polarization_array == -7)
+                    )[0]
+                ant1_antenna_weights = np.zeros((self.Nfreqs))
+                ant2_antenna_weights = np.zeros((self.Nfreqs))
+                for vis_pol_ind in use_vis_pol_inds_ant1:
+                    ant1_antenna_weights += np.sum(
+                        self.visibility_weights[
+                            :, np.where(self.ant1_inds == ant_ind)[0], :, vis_pol_ind
+                        ],
+                        axis=(0, 1),
+                    )
+                for vis_pol_ind in use_vis_pol_inds_ant2:
+                    ant2_antenna_weights += np.sum(
+                        self.visibility_weights[
+                            :, np.where(self.ant2_inds == ant_ind)[0], :, vis_pol_ind
+                        ],
+                        axis=(0, 1),
+                    )
+                antenna_weights[ant_ind, :, pol_ind] = (
+                    ant1_antenna_weights + ant2_antenna_weights
+                )
+        uvcal.flag_array[np.where(antenna_weights[:, :, np.newaxis, :] == 0)] = True
 
         try:
             uvcal.check()

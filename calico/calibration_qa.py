@@ -64,8 +64,8 @@ def calculate_per_antenna_cost(
                         caldata_list[freq_ind].data_visibilities[:, :, 0, pol_ind],
                         caldata_list[freq_ind].model_visibilities[:, :, 0, pol_ind],
                         caldata_list[freq_ind].visibility_weights[:, :, 0, pol_ind],
-                        caldata_list[freq_ind].gains_exp_mat_1,
-                        caldata_list[freq_ind].gains_exp_mat_2,
+                        caldata_list[freq_ind].ant1_inds,
+                        caldata_list[freq_ind].ant2_inds,
                         0.0,
                     )
                 else:
@@ -74,8 +74,8 @@ def calculate_per_antenna_cost(
                         caldata_list[freq_ind].model_visibilities[:, :, 0, pol_ind],
                         caldata_list[freq_ind].data_visibilities[:, :, 0, pol_ind],
                         caldata_list[freq_ind].visibility_weights[:, :, 0, pol_ind],
-                        caldata_list[freq_ind].gains_exp_mat_1,
-                        caldata_list[freq_ind].gains_exp_mat_2,
+                        caldata_list[freq_ind].ant1_inds,
+                        caldata_list[freq_ind].ant2_inds,
                         0.0,
                     )
                 args_list.append(args)
@@ -88,8 +88,8 @@ def calculate_per_antenna_cost(
                         caldata_obj.data_visibilities[:, :, freq_ind, pol_ind],
                         caldata_obj.model_visibilities[:, :, freq_ind, pol_ind],
                         caldata_obj.visibility_weights[:, :, freq_ind, pol_ind],
-                        caldata_obj.gains_exp_mat_1,
-                        caldata_obj.gains_exp_mat_2,
+                        caldata_obj.ant1_inds,
+                        caldata_obj.ant2_inds,
                         0.0,
                     )
                 else:
@@ -98,16 +98,16 @@ def calculate_per_antenna_cost(
                         caldata_obj.model_visibilities[:, :, freq_ind, pol_ind],
                         caldata_obj.data_visibilities[:, :, freq_ind, pol_ind],
                         caldata_obj.visibility_weights[:, :, freq_ind, pol_ind],
-                        caldata_obj.gains_exp_mat_1,
-                        caldata_obj.gains_exp_mat_2,
+                        caldata_obj.ant1_inds,
+                        caldata_obj.ant2_inds,
                         0.0,
                     )
 
         # Get per ant cost
         for ant_ind in range(caldata_obj.Nants):
             bl_inds = np.logical_or(
-                caldata_obj.gains_exp_mat_1[:, ant_ind],
-                caldata_obj.gains_exp_mat_2[:, ant_ind],
+                caldata_obj.ant1_inds == ant_ind,
+                caldata_obj.ant2_inds == ant_ind,
             )
             ant_excluded_weights = np.copy(
                 caldata_obj.visibility_weights[:, :, :, pol_ind]
@@ -126,8 +126,8 @@ def calculate_per_antenna_cost(
                             caldata_list[freq_ind].data_visibilities[:, :, 0, pol_ind],
                             caldata_list[freq_ind].model_visibilities[:, :, 0, pol_ind],
                             ant_excluded_weights[:, :, freq_ind],
-                            caldata_list[freq_ind].gains_exp_mat_1,
-                            caldata_list[freq_ind].gains_exp_mat_2,
+                            caldata_list[freq_ind].ant1_inds,
+                            caldata_list[freq_ind].ant2_inds,
                             0.0,
                         )
                     else:
@@ -136,8 +136,8 @@ def calculate_per_antenna_cost(
                             caldata_list[freq_ind].model_visibilities[:, :, 0, pol_ind],
                             caldata_list[freq_ind].data_visibilities[:, :, 0, pol_ind],
                             ant_excluded_weights[:, :, freq_ind],
-                            caldata_list[freq_ind].gains_exp_mat_1,
-                            caldata_list[freq_ind].gains_exp_mat_2,
+                            caldata_list[freq_ind].ant1_inds,
+                            caldata_list[freq_ind].ant2_inds,
                             0.0,
                         )
                     args_list.append(args)
@@ -152,8 +152,8 @@ def calculate_per_antenna_cost(
                             caldata_obj.data_visibilities[:, :, freq_ind, pol_ind],
                             caldata_obj.model_visibilities[:, :, freq_ind, pol_ind],
                             ant_excluded_weights[:, :, freq_ind],
-                            caldata_obj.gains_exp_mat_1,
-                            caldata_obj.gains_exp_mat_2,
+                            caldata_obj.ant1_inds,
+                            caldata_obj.ant2_inds,
                             0.0,
                         )
                     else:
@@ -164,8 +164,8 @@ def calculate_per_antenna_cost(
                             caldata_obj.model_visibilities[:, :, freq_ind, pol_ind],
                             caldata_obj.data_visibilities[:, :, freq_ind, pol_ind],
                             ant_excluded_weights[:, :, freq_ind],
-                            caldata_obj.gains_exp_mat_1,
-                            caldata_obj.gains_exp_mat_2,
+                            caldata_obj.ant1_inds,
+                            caldata_obj.ant2_inds,
                             0.0,
                         )
 
