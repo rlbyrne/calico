@@ -1204,7 +1204,7 @@ class TestStringMethods(unittest.TestCase):
         )
 
         perturb_antenna_name = "Tile048"
-        antenna_ind = np.where(caldata_obj.antenna_names == perturb_antenna_name)
+        antenna_ind = np.where(caldata_obj.antenna_names == perturb_antenna_name)[0]
         baseline_inds = np.where(
             np.logical_or(
                 caldata_obj.ant1_inds == antenna_ind,

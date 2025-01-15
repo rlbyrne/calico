@@ -105,10 +105,12 @@ def calculate_per_antenna_cost(
 
         # Get per ant cost
         for ant_ind in range(caldata_obj.Nants):
-            bl_inds = np.logical_or(
-                caldata_obj.ant1_inds == ant_ind,
-                caldata_obj.ant2_inds == ant_ind,
-            )
+            bl_inds = np.where(
+                np.logical_or(
+                    caldata_obj.ant1_inds == ant_ind,
+                    caldata_obj.ant2_inds == ant_ind,
+                )
+            )[0]
             ant_excluded_weights = np.copy(
                 caldata_obj.visibility_weights[:, :, :, pol_ind]
             )
