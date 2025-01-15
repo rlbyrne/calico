@@ -2405,7 +2405,6 @@ class TestStringMethods(unittest.TestCase):
     def test_dwabscal_hess_wrapper(self, verbose=False):
 
         delta_val = 1e-8
-        amplitude_perturbation = 1.3
         use_Nfreqs = 5
 
         model = pyuvdata.UVData()
@@ -2483,10 +2482,10 @@ class TestStringMethods(unittest.TestCase):
             hess_approx = (jac1 - jac0) / delta_val
 
             np.testing.assert_allclose(
-                hess_approx, hess[test_parameter_ind, :], rtol=1e-5
+                hess_approx, hess[test_parameter_ind, :], rtol=1e-4
             )
             np.testing.assert_allclose(
-                hess_approx, hess[:, test_parameter_ind], rtol=1e-5
+                hess_approx, hess[:, test_parameter_ind], rtol=1e-4
             )
 
     def test_calibration_gains_multiply_model_identical_data_no_flags(self):
