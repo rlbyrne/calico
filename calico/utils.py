@@ -58,6 +58,6 @@ def bincount_multidim(x, weights=None, minlength=0, axis=0):
             out = np.rollaxis(out, 0, start=axis + 1)
             out_list.append(out)
         if len(out_list) == 1:
-            return out[0]
+            return out_list[0]
         else:
-            return out[0] + 1j * out[1]
+            return out_list[0] + 1j * out_list[1]

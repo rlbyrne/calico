@@ -100,13 +100,11 @@ def jacobian_skycal(
         visibility_weights * gains_expanded_2 * np.conj(data_visibilities) * res_vec,
         axis=0,
     )
-    print(term1)
     term1 = utils.bincount_multidim(
         ant1_inds,
         weights=term1,
         minlength=np.max([np.max(ant1_inds), np.max(ant2_inds)]) + 1,
     )
-    print(term1)
     term2 = np.sum(
         visibility_weights * gains_expanded_1 * data_visibilities * np.conj(res_vec),
         axis=0,

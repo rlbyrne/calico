@@ -699,9 +699,9 @@ def run_skycal_optimization_per_pol_single_freq(
                     f"Optimization time: {(end_optimize - start_optimize)/60.} minutes"
                 )
             sys.stdout.flush()
-            gains_fit_single_pol = np.reshape(result.x, (2, len(ant_inds)))
+            gains_fit_single_pol = np.reshape(result.x, (len(ant_inds), 2))
             gains_fit[ant_inds, feed_pol_ind] = (
-                gains_fit_single_pol[0, :] + 1j * gains_fit_single_pol[1, :]
+                gains_fit_single_pol[:, 0] + 1j * gains_fit_single_pol[:, 1]
             )
 
             # Ensure that the phase of the gains is mean-zero
