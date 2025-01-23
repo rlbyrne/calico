@@ -659,6 +659,8 @@ def run_skycal_optimization_per_pol_single_freq(
         Fit gain values. Shape (Nants, 1, N_feed_pols,).
     """
 
+    print("***NEW CAL***")
+
     gains_fit = np.full(
         (caldata_obj.Nants, caldata_obj.N_feed_pols),
         np.nan + 1j * np.nan,
