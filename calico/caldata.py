@@ -1258,3 +1258,19 @@ class CalData:
             self.visibility_weights[:, :, freq_ind, vis_pol_ind],
             (self.Ntimes, self.Nbls),
         )
+    
+    ant_inds = None
+    def set_ant_inds(self, freq_ind, feed_pol_ind):
+        vis_weights_summed = np.sum(
+            self.visibility_weights[:, :, freq_ind, feed_pol_ind], axis=0
+        )  # Sum over times
+        weight_per_ant = np.bincount(
+            self.ant1_inds,
+            weights=vis_weights_summed,
+            minlength=self.Nants,
+        ) + np.bincount(
+            self.ant2_inds,
+            weights=vis_weights_summed,
+            minlength=self.Nants,
+        )
+        self.ant_inds = np.where(weight_per_ant > 0.0)[0]

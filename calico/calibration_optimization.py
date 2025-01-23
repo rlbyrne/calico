@@ -679,24 +679,12 @@ def run_skycal_optimization_per_pol_single_freq(
         ):  # All flagged
             gains_fit[:, feed_pol_ind] = np.nan + 1j * np.nan
         else:
-            vis_weights_summed = np.sum(
-                caldata_obj.visibility_weights[:, :, freq_ind, feed_pol_ind], axis=0
-            )  # Sum over times
-            weight_per_ant = np.bincount(
-                caldata_obj.ant1_inds,
-                weights=vis_weights_summed,
-                minlength=caldata_obj.Nants,
-            ) + np.bincount(
-                caldata_obj.ant2_inds,
-                weights=vis_weights_summed,
-                minlength=caldata_obj.Nants,
-            )
-            ant_inds = np.where(weight_per_ant > 0.0)[0]
+            caldata_obj.set_ant_inds(freq_ind, feed_pol_ind)
 
             gains_init_flattened = np.stack(
                 (
-                    np.real(caldata_obj.gains[ant_inds, freq_ind, feed_pol_ind]),
-                    np.imag(caldata_obj.gains[ant_inds, freq_ind, feed_pol_ind]),
+                    np.real(caldata_obj.gains[caldata_obj.ant_inds, freq_ind, feed_pol_ind]),
+                    np.imag(caldata_obj.gains[caldata_obj.ant_inds, freq_ind, feed_pol_ind]),
                 ),
                 axis=1,
             ).flatten()
@@ -708,7 +696,7 @@ def run_skycal_optimization_per_pol_single_freq(
             result = scipy.optimize.minimize(
                 cost_skycal_wrapper,
                 gains_init_flattened,
-                args=(caldata_obj, ant_inds),
+                args=(caldata_obj, caldata_obj.ant_inds),
                 method="Newton-CG",
                 jac=jacobian_skycal_wrapper,
                 hess=hessian_skycal_wrapper,
@@ -721,8 +709,8 @@ def run_skycal_optimization_per_pol_single_freq(
                     f"Optimization time: {(end_optimize - start_optimize)/60.} minutes"
                 )
             sys.stdout.flush()
-            gains_fit_single_pol = np.reshape(result.x, (len(ant_inds), 2))
-            gains_fit[ant_inds, feed_pol_ind] = (
+            gains_fit_single_pol = np.reshape(result.x, (len(caldata_obj.ant_inds), 2))
+            gains_fit[caldata_obj.ant_inds, feed_pol_ind] = (
                 gains_fit_single_pol[:, 0] + 1j * gains_fit_single_pol[:, 1]
             )
 
