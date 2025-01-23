@@ -1241,3 +1241,20 @@ class CalData:
                     weight_mat[time_ind, :, :, :, vis_pol_ind] *= normalization_factor
 
         self.dwcal_inv_covariance = weight_mat
+
+    data_vis_reshape = None
+    model_vis_reshape = None
+    vis_weights_reshape = None
+    def reshape_data(self, freq_ind, vis_pol_ind):
+        self.data_vis_reshape = np.reshape(
+            self.data_visibilities[:, :, freq_ind, vis_pol_ind],
+            (self.Ntimes, self.Nbls),
+        )
+        self.model_vis_reshape = np.reshape(
+            self.model_visibilities[:, :, freq_ind, vis_pol_ind],
+            (self.Ntimes, self.Nbls),
+        )
+        self.vis_weights_reshape = np.reshape(
+            self.visibility_weights[:, :, freq_ind, vis_pol_ind],
+            (self.Ntimes, self.Nbls),
+        )
