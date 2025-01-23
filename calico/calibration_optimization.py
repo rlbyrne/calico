@@ -42,9 +42,9 @@ def cost_skycal_wrapper(
     if caldata_obj.gains_multiply_model:
         cost = cost_function_calculations.cost_skycal(
             gains,
-            caldata_obj.data_vis_reshape,
-            caldata_obj.model_vis_reshape,
-            caldata_obj.vis_weights_reshape,
+            caldata_obj.data_vis_reshaped,
+            caldata_obj.model_vis_reshaped,
+            caldata_obj.vis_weights_reshaped,
             caldata_obj.ant1_inds,
             caldata_obj.ant2_inds,
             caldata_obj.lambda_val,
@@ -52,9 +52,9 @@ def cost_skycal_wrapper(
     else:
         cost = cost_function_calculations.cost_skycal(
             gains,
-            caldata_obj.model_vis_reshape,
-            caldata_obj.data_vis_reshape,
-            caldata_obj.vis_weights_reshape,
+            caldata_obj.model_vis_reshaped,
+            caldata_obj.data_vis_reshaped,
+            caldata_obj.vis_weights_reshaped,
             caldata_obj.ant1_inds,
             caldata_obj.ant2_inds,
             caldata_obj.lambda_val,
@@ -101,9 +101,9 @@ def jacobian_skycal_wrapper(
     if caldata_obj.gains_multiply_model:
         jac = cost_function_calculations.jacobian_skycal(
             gains,
-            caldata_obj.data_vis_reshape,
-            caldata_obj.model_vis_reshape,
-            caldata_obj.vis_weights_reshape,
+            caldata_obj.data_vis_reshaped,
+            caldata_obj.model_vis_reshaped,
+            caldata_obj.vis_weights_reshaped,
             caldata_obj.ant1_inds,
             caldata_obj.ant2_inds,
             caldata_obj.lambda_val,
@@ -111,9 +111,9 @@ def jacobian_skycal_wrapper(
     else:
         jac = cost_function_calculations.jacobian_skycal(
             gains,
-            caldata_obj.model_vis_reshape,
-            caldata_obj.data_vis_reshape,
-            caldata_obj.vis_weights_reshape,
+            caldata_obj.model_vis_reshaped,
+            caldata_obj.data_vis_reshaped,
+            caldata_obj.vis_weights_reshaped,
             caldata_obj.ant1_inds,
             caldata_obj.ant2_inds,
             caldata_obj.lambda_val,
@@ -167,9 +167,9 @@ def hessian_skycal_wrapper(
             gains,
             caldata_obj.Nants,
             caldata_obj.Nbls,
-            caldata_obj.data_vis_reshape,
-            caldata_obj.model_vis_reshape,
-            caldata_obj.vis_weights_reshape,
+            caldata_obj.data_vis_reshaped,
+            caldata_obj.model_vis_reshaped,
+            caldata_obj.vis_weights_reshaped,
             caldata_obj.ant1_inds,
             caldata_obj.ant2_inds,
             caldata_obj.lambda_val,
@@ -183,9 +183,9 @@ def hessian_skycal_wrapper(
             gains,
             caldata_obj.Nants,
             caldata_obj.Nbls,
-            caldata_obj.model_vis_reshape,
-            caldata_obj.data_vis_reshape,
-            caldata_obj.vis_weights_reshape,
+            caldata_obj.model_vis_reshaped,
+            caldata_obj.data_vis_reshaped,
+            caldata_obj.vis_weights_reshaped,
             caldata_obj.ant1_inds,
             caldata_obj.ant2_inds,
             caldata_obj.lambda_val,
@@ -610,6 +610,7 @@ def run_skycal_optimization_per_pol_single_freq(
                 ),
                 axis=1,
             ).flatten()
+            #gains_init_flattened = caldata_obj.pack(freq_ind, feed_pol_ind)
 
             caldata_obj.reshape_data(freq_ind, vis_pol_ind)
 

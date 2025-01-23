@@ -1242,19 +1242,33 @@ class CalData:
 
         self.dwcal_inv_covariance = weight_mat
 
-    data_vis_reshape = None
-    model_vis_reshape = None
-    vis_weights_reshape = None
+    gains_params = None
+    params_flattened = None
+    gains_real = None
+    gains_imag = None
+    def pack(self, freq_ind, feed_pol_ind):
+        self.gains_real = np.real(self.gains[self.ant_inds, freq_ind, feed_pol_ind])
+        self.gains_imag = np.imag(self.gains[self.ant_inds, freq_ind, feed_pol_ind])
+
+        return np.stack(
+            self.gains_real,
+            self.gains_imag,
+            axis=1,
+        ).flatten()
+
+    data_vis_reshaped = None
+    model_vis_reshaped = None
+    vis_weights_reshaped = None
     def reshape_data(self, freq_ind, vis_pol_ind):
-        self.data_vis_reshape = np.reshape(
+        self.data_vis_reshaped = np.reshape(
             self.data_visibilities[:, :, freq_ind, vis_pol_ind],
             (self.Ntimes, self.Nbls),
         )
-        self.model_vis_reshape = np.reshape(
+        self.model_vis_reshaped = np.reshape(
             self.model_visibilities[:, :, freq_ind, vis_pol_ind],
             (self.Ntimes, self.Nbls),
         )
-        self.vis_weights_reshape = np.reshape(
+        self.vis_weights_reshaped = np.reshape(
             self.visibility_weights[:, :, freq_ind, vis_pol_ind],
             (self.Ntimes, self.Nbls),
         )
