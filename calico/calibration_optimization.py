@@ -5,6 +5,37 @@ import scipy.optimize
 import time
 from calico import cost_function_calculations
 
+"""
+    Takes 3D array of 2D Hessian parts and flattens them into one 2D Hessian
+    to return to scipy. For now, expected shape has third dimension of three 
+    parts: real-real, real-imag, imag-imag. This is for gains only. For the 
+    future, general case with model params there will be additional pieces 
+    for those -- also RR, RI, and II -- as well as cross terms for u and g 
+    that will constitute additional expected elements in that dimension of
+    the array, handled similarly. This algorithm might update in the future.
+"""
+def flatten_hessian(
+    hess_arrays,
+    Nants_unflagged,
+):
+    hess_flattened = np.full(
+        (2 * Nants_unflagged, 2 * Nants_unflagged), np.nan, dtype=float
+    )
+    for ant_ind_1 in range(Nants_unflagged):
+        for ant_ind_2 in range(Nants_unflagged):
+            hess_flattened[2 * ant_ind_1, 2 * ant_ind_2] = hess_arrays[0][
+                ant_ind_1, ant_ind_2
+            ]
+            hess_flattened[2 * ant_ind_1 + 1, 2 * ant_ind_2] = hess_arrays[1][
+                ant_ind_1, ant_ind_2
+            ]
+            hess_flattened[2 * ant_ind_1, 2 * ant_ind_2 + 1] = np.conj(
+                hess_arrays[1][ant_ind_2, ant_ind_1]
+            )
+            hess_flattened[2 * ant_ind_1 + 1, 2 * ant_ind_2 + 1] = hess_arrays[2][
+                ant_ind_1, ant_ind_2
+            ]
+    return hess_flattened
 
 def cost_skycal_wrapper(
     gains_flattened,
@@ -190,24 +221,15 @@ def hessian_skycal_wrapper(
             caldata_obj.ant2_inds,
             caldata_obj.lambda_val,
         )
-    hess_flattened = np.full(
-        (2 * Nants_unflagged, 2 * Nants_unflagged), np.nan, dtype=float
+
+    return flatten_hessian(
+        [
+            hess_real_real,
+            hess_real_imag,
+            hess_imag_imag,
+        ],
+        Nants_unflagged,
     )
-    for ant_ind_1 in range(Nants_unflagged):
-        for ant_ind_2 in range(Nants_unflagged):
-            hess_flattened[2 * ant_ind_1, 2 * ant_ind_2] = hess_real_real[
-                ant_ind_1, ant_ind_2
-            ]
-            hess_flattened[2 * ant_ind_1 + 1, 2 * ant_ind_2] = hess_real_imag[
-                ant_ind_1, ant_ind_2
-            ]
-            hess_flattened[2 * ant_ind_1, 2 * ant_ind_2 + 1] = np.conj(
-                hess_real_imag[ant_ind_2, ant_ind_1]
-            )
-            hess_flattened[2 * ant_ind_1 + 1, 2 * ant_ind_2 + 1] = hess_imag_imag[
-                ant_ind_1, ant_ind_2
-            ]
-    return hess_flattened
 
 
 def cost_abscal_wrapper(abscal_parameters, caldata_obj):
