@@ -603,14 +603,7 @@ def run_skycal_optimization_per_pol_single_freq(
         else:
             caldata_obj.set_ant_inds(freq_ind, feed_pol_ind)
 
-            gains_init_flattened = np.stack(
-                (
-                    np.real(caldata_obj.gains[caldata_obj.ant_inds, freq_ind, feed_pol_ind]),
-                    np.imag(caldata_obj.gains[caldata_obj.ant_inds, freq_ind, feed_pol_ind]),
-                ),
-                axis=1,
-            ).flatten()
-            #gains_init_flattened = caldata_obj.pack(freq_ind, feed_pol_ind)
+            gains_init_flattened = caldata_obj.pack(freq_ind, feed_pol_ind)
 
             caldata_obj.reshape_data(freq_ind, vis_pol_ind)
 

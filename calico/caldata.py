@@ -1242,8 +1242,6 @@ class CalData:
 
         self.dwcal_inv_covariance = weight_mat
 
-    gains_params = None
-    params_flattened = None
     gains_real = None
     gains_imag = None
     def pack(self, freq_ind, feed_pol_ind):
@@ -1251,8 +1249,10 @@ class CalData:
         self.gains_imag = np.imag(self.gains[self.ant_inds, freq_ind, feed_pol_ind])
 
         return np.stack(
-            self.gains_real,
-            self.gains_imag,
+            (
+                self.gains_real,
+                self.gains_imag,
+            ),
             axis=1,
         ).flatten()
 
