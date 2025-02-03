@@ -13,6 +13,18 @@ from calico import cost_function_calculations
     for those -- also RR, RI, and II -- as well as cross terms for u and g 
     that will constitute additional expected elements in that dimension of
     the array, handled similarly. This algorithm might update in the future.
+
+    Parameters
+    ----------
+    hess_arrays : array of float
+        Array of Hessians pieces with gain 
+    Nants_unflagged : int
+        Length of array of indexed antennas
+
+    Returns
+    -------
+    hess_flattened : array of float
+        Hessian of the cost function, shape (2*Nants_unflagged, 2*Nants_unflagged,).
 """
 def flatten_hessian(
     hess_arrays,

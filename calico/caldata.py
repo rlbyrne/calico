@@ -84,6 +84,18 @@ class CalData:
     telescope_location : array of float
     lambda_val : float
         Weight of the phase regularization term; must be positive. Default 100.
+    gains_real : array of float
+        Shape (Nants,). Real part of gains per frequency and per polarization.
+    gains_imag : array of float
+        Shape (Nants,). Imaginary part of gains per frequency and per polarization.
+    data_vis_reshaped : array of complex
+        Shape (Ntimes, Nbls). Reshaped for optimization function linear algebra.
+    model_vis_reshaped : array of complex
+        Shape (Ntimes, Nbls). Reshaped for optimization function linear algebra.
+    vis_weights_reshaped : array of float
+        Shape (Ntimes, Nbls). Reshaped for optimization function linear algebra.
+    ant_inds : array of int
+        Shape (Nants_unflagged). Indices of unflagged antennas to be calibrated.
     """
 
     def __init__(self):
@@ -117,6 +129,12 @@ class CalData:
         self.lst = None
         self.telescope_location = None
         self.lambda_val = None
+        self.gains_real = None
+        self.gains_imag = None
+        self.data_vis_reshaped = None
+        self.model_vis_reshaped = None
+        self.vis_weights_reshaped = None
+        self.ant_inds = None
 
     def set_gains_from_calfile(self, calfile):
         """
@@ -1242,9 +1260,19 @@ class CalData:
 
         self.dwcal_inv_covariance = weight_mat
 
-    gains_real = None
-    gains_imag = None
     def pack(self, freq_ind, feed_pol_ind):
+        """
+        This function packs the parameters (for now gains, in future the u-params)
+        both real and imaginary parts into a single flattened array for use in
+        the optimizing function.
+
+        Parameters
+        ----------
+        freq_ind : int
+            Frequency channel index.
+        feed_pol_ind : int
+            Feed polarization index.
+        """
         self.gains_real = np.real(self.gains[self.ant_inds, freq_ind, feed_pol_ind])
         self.gains_imag = np.imag(self.gains[self.ant_inds, freq_ind, feed_pol_ind])
 
@@ -1256,10 +1284,20 @@ class CalData:
             axis=1,
         ).flatten()
 
-    data_vis_reshaped = None
-    model_vis_reshaped = None
-    vis_weights_reshaped = None
     def reshape_data(self, freq_ind, vis_pol_ind):
+        """
+        This function reshapes data and model visibilities as well
+        as visibility weights (and in the future, model weights)
+        for use by the cost function, Jacobian, and Hessian
+        wrappers called by the optimizing function.
+
+        Parameters
+        ----------
+        freq_ind : int
+            Frequency channel index.
+        vis_pol_ind : int
+            Visibility polarization index.
+        """
         self.data_vis_reshaped = np.reshape(
             self.data_visibilities[:, :, freq_ind, vis_pol_ind],
             (self.Ntimes, self.Nbls),
@@ -1273,8 +1311,18 @@ class CalData:
             (self.Ntimes, self.Nbls),
         )
     
-    ant_inds = None
     def set_ant_inds(self, freq_ind, feed_pol_ind):
+        """
+        This function sets indices of unflagged antennas
+        to be calibrated.
+
+        Parameters
+        ----------
+        freq_ind : int
+            Frequency channel index.
+        feed_pol_ind : int
+            Feed polarization index.
+        """
         vis_weights_summed = np.sum(
             self.visibility_weights[:, :, freq_ind, feed_pol_ind], axis=0
         )  # Sum over times
