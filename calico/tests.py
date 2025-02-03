@@ -1104,8 +1104,12 @@ class TestStringMethods(unittest.TestCase):
             axis=1,
         ).flatten()
 
+        # hess = calibration_optimization.hessian_skycal_wrapper(
+        #     gains_flattened, caldata_obj, np.arange(caldata_obj.Nants), 0, 0
+        # )
+        caldata_obj.reshape_data(0,0)
         hess = calibration_optimization.hessian_skycal_wrapper(
-            gains_flattened, caldata_obj, np.arange(caldata_obj.Nants), 0, 0
+            gains_flattened, caldata_obj, np.arange(caldata_obj.Nants),
         )
 
         np.testing.assert_allclose(hess - np.conj(hess.T), 0.0 + 1j * 0.0)

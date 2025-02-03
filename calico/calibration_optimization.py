@@ -5,13 +5,54 @@ import scipy.optimize
 import time
 from calico import cost_function_calculations
 
+"""
+    Takes 3D array of 2D Hessian parts and flattens them into one 2D Hessian
+    to return to scipy. For now, expected shape has third dimension of three 
+    parts: real-real, real-imag, imag-imag. This is for gains only. For the 
+    future, general case with model params there will be additional pieces 
+    for those -- also RR, RI, and II -- as well as cross terms for u and g 
+    that will constitute additional expected elements in that dimension of
+    the array, handled similarly. This algorithm might update in the future.
+
+    Parameters
+    ----------
+    hess_arrays : array of float
+        Array of Hessians pieces with gain 
+    Nants_unflagged : int
+        Length of array of indexed antennas
+
+    Returns
+    -------
+    hess_flattened : array of float
+        Hessian of the cost function, shape (2*Nants_unflagged, 2*Nants_unflagged,).
+"""
+def flatten_hessian(
+    hess_arrays,
+    Nants_unflagged,
+):
+    hess_flattened = np.full(
+        (2 * Nants_unflagged, 2 * Nants_unflagged), np.nan, dtype=float
+    )
+    for ant_ind_1 in range(Nants_unflagged):
+        for ant_ind_2 in range(Nants_unflagged):
+            hess_flattened[2 * ant_ind_1, 2 * ant_ind_2] = hess_arrays[0][
+                ant_ind_1, ant_ind_2
+            ]
+            hess_flattened[2 * ant_ind_1 + 1, 2 * ant_ind_2] = hess_arrays[1][
+                ant_ind_1, ant_ind_2
+            ]
+            hess_flattened[2 * ant_ind_1, 2 * ant_ind_2 + 1] = np.conj(
+                hess_arrays[1][ant_ind_2, ant_ind_1]
+            )
+            hess_flattened[2 * ant_ind_1 + 1, 2 * ant_ind_2 + 1] = hess_arrays[2][
+                ant_ind_1, ant_ind_2
+            ]
+    return hess_flattened
 
 def cost_skycal_wrapper(
     gains_flattened,
     caldata_obj,
     ant_inds,
-    freq_ind,
-    vis_pol_ind,
 ):
     """
     Wrapper for function cost_skycal. Reformats the input gains to be compatible
@@ -44,18 +85,9 @@ def cost_skycal_wrapper(
     if caldata_obj.gains_multiply_model:
         cost = cost_function_calculations.cost_skycal(
             gains,
-            np.reshape(
-                caldata_obj.data_visibilities[:, :, freq_ind, vis_pol_ind],
-                (caldata_obj.Ntimes, caldata_obj.Nbls),
-            ),
-            np.reshape(
-                caldata_obj.model_visibilities[:, :, freq_ind, vis_pol_ind],
-                (caldata_obj.Ntimes, caldata_obj.Nbls),
-            ),
-            np.reshape(
-                caldata_obj.visibility_weights[:, :, freq_ind, vis_pol_ind],
-                (caldata_obj.Ntimes, caldata_obj.Nbls),
-            ),
+            caldata_obj.data_vis_reshaped,
+            caldata_obj.model_vis_reshaped,
+            caldata_obj.vis_weights_reshaped,
             caldata_obj.ant1_inds,
             caldata_obj.ant2_inds,
             caldata_obj.lambda_val,
@@ -63,18 +95,9 @@ def cost_skycal_wrapper(
     else:
         cost = cost_function_calculations.cost_skycal(
             gains,
-            np.reshape(
-                caldata_obj.model_visibilities[:, :, freq_ind, vis_pol_ind],
-                (caldata_obj.Ntimes, caldata_obj.Nbls),
-            ),
-            np.reshape(
-                caldata_obj.data_visibilities[:, :, freq_ind, vis_pol_ind],
-                (caldata_obj.Ntimes, caldata_obj.Nbls),
-            ),
-            np.reshape(
-                caldata_obj.visibility_weights[:, :, freq_ind, vis_pol_ind],
-                (caldata_obj.Ntimes, caldata_obj.Nbls),
-            ),
+            caldata_obj.model_vis_reshaped,
+            caldata_obj.data_vis_reshaped,
+            caldata_obj.vis_weights_reshaped,
             caldata_obj.ant1_inds,
             caldata_obj.ant2_inds,
             caldata_obj.lambda_val,
@@ -86,8 +109,6 @@ def jacobian_skycal_wrapper(
     gains_flattened,
     caldata_obj,
     ant_inds,
-    freq_ind,
-    vis_pol_ind,
 ):
     """
     Wrapper for function jacobian_skycal. Reformats the input gains and
@@ -123,18 +144,9 @@ def jacobian_skycal_wrapper(
     if caldata_obj.gains_multiply_model:
         jac = cost_function_calculations.jacobian_skycal(
             gains,
-            np.reshape(
-                caldata_obj.data_visibilities[:, :, freq_ind, vis_pol_ind],
-                (caldata_obj.Ntimes, caldata_obj.Nbls),
-            ),
-            np.reshape(
-                caldata_obj.model_visibilities[:, :, freq_ind, vis_pol_ind],
-                (caldata_obj.Ntimes, caldata_obj.Nbls),
-            ),
-            np.reshape(
-                caldata_obj.visibility_weights[:, :, freq_ind, vis_pol_ind],
-                (caldata_obj.Ntimes, caldata_obj.Nbls),
-            ),
+            caldata_obj.data_vis_reshaped,
+            caldata_obj.model_vis_reshaped,
+            caldata_obj.vis_weights_reshaped,
             caldata_obj.ant1_inds,
             caldata_obj.ant2_inds,
             caldata_obj.lambda_val,
@@ -142,18 +154,9 @@ def jacobian_skycal_wrapper(
     else:
         jac = cost_function_calculations.jacobian_skycal(
             gains,
-            np.reshape(
-                caldata_obj.model_visibilities[:, :, freq_ind, vis_pol_ind],
-                (caldata_obj.Ntimes, caldata_obj.Nbls),
-            ),
-            np.reshape(
-                caldata_obj.data_visibilities[:, :, freq_ind, vis_pol_ind],
-                (caldata_obj.Ntimes, caldata_obj.Nbls),
-            ),
-            np.reshape(
-                caldata_obj.visibility_weights[:, :, freq_ind, vis_pol_ind],
-                (caldata_obj.Ntimes, caldata_obj.Nbls),
-            ),
+            caldata_obj.model_vis_reshaped,
+            caldata_obj.data_vis_reshaped,
+            caldata_obj.vis_weights_reshaped,
             caldata_obj.ant1_inds,
             caldata_obj.ant2_inds,
             caldata_obj.lambda_val,
@@ -168,8 +171,6 @@ def hessian_skycal_wrapper(
     gains_flattened,
     caldata_obj,
     ant_inds,
-    freq_ind,
-    vis_pol_ind,
 ):
     """
     Wrapper for function hessian_skycal. Reformats the input gains and
@@ -209,18 +210,9 @@ def hessian_skycal_wrapper(
             gains,
             caldata_obj.Nants,
             caldata_obj.Nbls,
-            np.reshape(
-                caldata_obj.data_visibilities[:, :, freq_ind, vis_pol_ind],
-                (caldata_obj.Ntimes, caldata_obj.Nbls),
-            ),
-            np.reshape(
-                caldata_obj.model_visibilities[:, :, freq_ind, vis_pol_ind],
-                (caldata_obj.Ntimes, caldata_obj.Nbls),
-            ),
-            np.reshape(
-                caldata_obj.visibility_weights[:, :, freq_ind, vis_pol_ind],
-                (caldata_obj.Ntimes, caldata_obj.Nbls),
-            ),
+            caldata_obj.data_vis_reshaped,
+            caldata_obj.model_vis_reshaped,
+            caldata_obj.vis_weights_reshaped,
             caldata_obj.ant1_inds,
             caldata_obj.ant2_inds,
             caldata_obj.lambda_val,
@@ -234,40 +226,22 @@ def hessian_skycal_wrapper(
             gains,
             caldata_obj.Nants,
             caldata_obj.Nbls,
-            np.reshape(
-                caldata_obj.model_visibilities[:, :, freq_ind, vis_pol_ind],
-                (caldata_obj.Ntimes, caldata_obj.Nbls),
-            ),
-            np.reshape(
-                caldata_obj.data_visibilities[:, :, freq_ind, vis_pol_ind],
-                (caldata_obj.Ntimes, caldata_obj.Nbls),
-            ),
-            np.reshape(
-                caldata_obj.visibility_weights[:, :, freq_ind, vis_pol_ind],
-                (caldata_obj.Ntimes, caldata_obj.Nbls),
-            ),
+            caldata_obj.model_vis_reshaped,
+            caldata_obj.data_vis_reshaped,
+            caldata_obj.vis_weights_reshaped,
             caldata_obj.ant1_inds,
             caldata_obj.ant2_inds,
             caldata_obj.lambda_val,
         )
-    hess_flattened = np.full(
-        (2 * Nants_unflagged, 2 * Nants_unflagged), np.nan, dtype=float
+
+    return flatten_hessian(
+        [
+            hess_real_real,
+            hess_real_imag,
+            hess_imag_imag,
+        ],
+        Nants_unflagged,
     )
-    for ant_ind_1 in range(Nants_unflagged):
-        for ant_ind_2 in range(Nants_unflagged):
-            hess_flattened[2 * ant_ind_1, 2 * ant_ind_2] = hess_real_real[
-                ant_ind_1, ant_ind_2
-            ]
-            hess_flattened[2 * ant_ind_1 + 1, 2 * ant_ind_2] = hess_real_imag[
-                ant_ind_1, ant_ind_2
-            ]
-            hess_flattened[2 * ant_ind_1, 2 * ant_ind_2 + 1] = np.conj(
-                hess_real_imag[ant_ind_2, ant_ind_1]
-            )
-            hess_flattened[2 * ant_ind_1 + 1, 2 * ant_ind_2 + 1] = hess_imag_imag[
-                ant_ind_1, ant_ind_2
-            ]
-    return hess_flattened
 
 
 def cost_abscal_wrapper(abscal_parameters, caldata_obj):
@@ -641,6 +615,8 @@ def run_skycal_optimization_per_pol_single_freq(
         Fit gain values. Shape (Nants, 1, N_feed_pols,).
     """
 
+    print("***NEW CAL***")
+
     gains_fit = np.full(
         (caldata_obj.Nants, caldata_obj.N_feed_pols),
         np.nan + 1j * np.nan,
@@ -659,34 +635,18 @@ def run_skycal_optimization_per_pol_single_freq(
         ):  # All flagged
             gains_fit[:, feed_pol_ind] = np.nan + 1j * np.nan
         else:
-            vis_weights_summed = np.sum(
-                caldata_obj.visibility_weights[:, :, freq_ind, feed_pol_ind], axis=0
-            )  # Sum over times
-            weight_per_ant = np.bincount(
-                caldata_obj.ant1_inds,
-                weights=vis_weights_summed,
-                minlength=caldata_obj.Nants,
-            ) + np.bincount(
-                caldata_obj.ant2_inds,
-                weights=vis_weights_summed,
-                minlength=caldata_obj.Nants,
-            )
-            ant_inds = np.where(weight_per_ant > 0.0)[0]
+            caldata_obj.set_ant_inds(freq_ind, feed_pol_ind)
 
-            gains_init_flattened = np.stack(
-                (
-                    np.real(caldata_obj.gains[ant_inds, freq_ind, feed_pol_ind]),
-                    np.imag(caldata_obj.gains[ant_inds, freq_ind, feed_pol_ind]),
-                ),
-                axis=1,
-            ).flatten()
+            gains_init_flattened = caldata_obj.pack(freq_ind, feed_pol_ind)
+
+            caldata_obj.reshape_data(freq_ind, vis_pol_ind)
 
             # Minimize the cost function
             start_optimize = time.time()
             result = scipy.optimize.minimize(
                 cost_skycal_wrapper,
                 gains_init_flattened,
-                args=(caldata_obj, ant_inds, freq_ind, vis_pol_ind),
+                args=(caldata_obj, caldata_obj.ant_inds),
                 method="Newton-CG",
                 jac=jacobian_skycal_wrapper,
                 hess=hessian_skycal_wrapper,
@@ -699,8 +659,8 @@ def run_skycal_optimization_per_pol_single_freq(
                     f"Optimization time: {(end_optimize - start_optimize)/60.} minutes"
                 )
             sys.stdout.flush()
-            gains_fit_single_pol = np.reshape(result.x, (len(ant_inds), 2))
-            gains_fit[ant_inds, feed_pol_ind] = (
+            gains_fit_single_pol = np.reshape(result.x, (len(caldata_obj.ant_inds), 2))
+            gains_fit[caldata_obj.ant_inds, feed_pol_ind] = (
                 gains_fit_single_pol[:, 0] + 1j * gains_fit_single_pol[:, 1]
             )
 
