@@ -224,9 +224,10 @@ def sky_based_calibration_wrapper(
         lambda_val=lambda_val,
     )
 
-    if caldata_obj.Nfreqs < 2:
+    if caldata_obj.Nfreqs < 2:  # Do not parallelize
         parallel = False
-        pool.terminate()
+        if pool is not None:
+            pool.terminate()
         pool = None
 
     if verbose:
