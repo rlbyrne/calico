@@ -253,18 +253,18 @@ def hessian_skycal_wrapper(
     hess_flattened = np.full(
         (2 * Nants_unflagged, 2 * Nants_unflagged), np.nan, dtype=float
     )
-    for ant_ind_1 in range(Nants_unflagged):
-        for ant_ind_2 in range(Nants_unflagged):
-            hess_flattened[2 * ant_ind_1, 2 * ant_ind_2] = hess_real_real[
+    for unflagged_ant_ind1, ant_ind_1 in enumerate(ant_inds):
+        for unflagged_ant_ind2, ant_ind_2 in enumerate(ant_inds):
+            hess_flattened[2 * unflagged_ant_ind1, 2 * unflagged_ant_ind2] = hess_real_real[
                 ant_ind_1, ant_ind_2
             ]
-            hess_flattened[2 * ant_ind_1 + 1, 2 * ant_ind_2] = hess_real_imag[
+            hess_flattened[2 * unflagged_ant_ind1, 2 * unflagged_ant_ind2+1] = hess_real_imag[
                 ant_ind_1, ant_ind_2
             ]
-            hess_flattened[2 * ant_ind_1, 2 * ant_ind_2 + 1] = np.conj(
+            hess_flattened[2 * unflagged_ant_ind1+1, 2 * unflagged_ant_ind2] = np.conj(
                 hess_real_imag[ant_ind_2, ant_ind_1]
             )
-            hess_flattened[2 * ant_ind_1 + 1, 2 * ant_ind_2 + 1] = hess_imag_imag[
+            hess_flattened[2 * unflagged_ant_ind1 + 1, 2 * unflagged_ant_ind2 + 1] = hess_imag_imag[
                 ant_ind_1, ant_ind_2
             ]
     return hess_flattened
