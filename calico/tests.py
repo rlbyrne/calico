@@ -15,7 +15,10 @@ THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
 class TestStringMethods(unittest.TestCase):
-    def test_cost_single_pol_with_identical_data(self):
+
+    ################ SKYCAL TESTS ################
+
+    def test_cost_skycal_with_identical_data(self):
 
         test_freq_ind = 0
         test_pol_ind = 0
@@ -39,7 +42,7 @@ class TestStringMethods(unittest.TestCase):
 
         np.testing.assert_allclose(cost, 0.0)
 
-    def test_jac_single_pol_real_part(self, verbose=False):
+    def test_jac_skycal_real_part(self, verbose=False):
 
         test_ant_ind = 10
         test_freq_ind = 0
@@ -81,6 +84,7 @@ class TestStringMethods(unittest.TestCase):
             caldata_obj.ant2_inds,
             caldata_obj.lambda_val,
         )
+        print(cost0)
         gains_init1 = np.copy(gains_init[:, test_freq_ind])
         gains_init1[test_ant_ind] += delta_gain / 2
         cost1 = cost_function_calculations.cost_skycal(
@@ -110,7 +114,7 @@ class TestStringMethods(unittest.TestCase):
 
         np.testing.assert_allclose(grad_approx, jac_value, rtol=1e-5)
 
-    def test_jac_single_pol_imaginary_part(self, verbose=False):
+    def test_jac_skycal_imaginary_part(self, verbose=False):
 
         test_ant_ind = 10
         test_freq_ind = 0
@@ -181,7 +185,7 @@ class TestStringMethods(unittest.TestCase):
 
         np.testing.assert_allclose(grad_approx, jac_value, rtol=1e-5)
 
-    def test_jac_single_pol_regularization_real_part(self, verbose=False):
+    def test_jac_skycal_regularization_real_part(self, verbose=False):
 
         test_ant_ind = 10
         test_freq_ind = 0
@@ -256,7 +260,7 @@ class TestStringMethods(unittest.TestCase):
 
         np.testing.assert_allclose(grad_approx, jac_value, rtol=1e-5)
 
-    def test_jac_single_pol_regularization_imaginary_part(self, verbose=False):
+    def test_jac_skycal_regularization_imaginary_part(self, verbose=False):
 
         test_ant_ind = 10
         test_freq_ind = 0
@@ -331,7 +335,7 @@ class TestStringMethods(unittest.TestCase):
 
         np.testing.assert_allclose(grad_approx, jac_value, rtol=1e-5)
 
-    def test_hess_single_pol_different_antennas_real(self, verbose=False):
+    def test_hess_skycal_different_antennas_real(self, verbose=False):
 
         test_ant_1_ind = 10
         test_ant_2_ind = 20
@@ -419,7 +423,7 @@ class TestStringMethods(unittest.TestCase):
 
         np.testing.assert_allclose(grad_approx, hess_value, rtol=1e-5)
 
-    def test_hess_single_pol_different_antennas_imaginary(self, verbose=False):
+    def test_hess_skycal_different_antennas_imaginary(self, verbose=False):
 
         test_ant_1_ind = 10
         test_ant_2_ind = 20
@@ -507,7 +511,7 @@ class TestStringMethods(unittest.TestCase):
 
         np.testing.assert_allclose(grad_approx, hess_value, rtol=1e-5)
 
-    def test_hess_single_pol_same_antenna_real(self, verbose=False):
+    def test_hess_skycal_same_antenna_real(self, verbose=False):
 
         test_ant_1_ind = 10
         test_ant_2_ind = 10
@@ -596,7 +600,7 @@ class TestStringMethods(unittest.TestCase):
         # Test if approx. consistent with zero
         np.testing.assert_allclose(grad_approx, hess_value, atol=1e-1)
 
-    def test_hess_single_pol_same_antenna_imaginary(self, verbose=False):
+    def test_hess_skycal_same_antenna_imaginary(self, verbose=False):
 
         test_ant_1_ind = 10
         test_ant_2_ind = 10
@@ -685,7 +689,99 @@ class TestStringMethods(unittest.TestCase):
 
         np.testing.assert_allclose(grad_approx, hess_value, rtol=1e-5)
 
-    def test_hess_regularization_single_pol_different_antennas_real(
+    def test_hess_regularization_skycal_different_antennas_real(self, verbose=False):
+
+        test_ant_1_ind = 10
+        test_ant_2_ind = 20
+        test_freq_ind = 0
+        test_pol_ind = 0
+        delta_gain = 1e-8
+        lambda_val = 1000
+        gain_stddev = 0.1
+
+        model = pyuvdata.UVData()
+        model.read(f"{THIS_DIR}/data/test_model_1freq.uvfits")
+        data = pyuvdata.UVData()
+        data.read(f"{THIS_DIR}/data/test_data_1freq.uvfits")
+
+        caldata_obj = caldata.CalData()
+        caldata_obj.load_data(data, model, lambda_val=lambda_val)
+
+        caldata_obj.visibility_weights = np.zeros_like(
+            caldata_obj.visibility_weights
+        )  # Don't test data
+
+        np.random.seed(0)
+        gains_init_real = np.random.normal(
+            1.0,
+            gain_stddev,
+            size=(caldata_obj.Nants, caldata_obj.Nfreqs),
+        )
+        np.random.seed(0)
+        gains_init_imag = 1.0j * np.random.normal(
+            0.0,
+            gain_stddev,
+            size=(caldata_obj.Nants, caldata_obj.Nfreqs),
+        )
+        gains_init = gains_init_real + gains_init_imag
+
+        gains_init0 = np.copy(gains_init[:, test_freq_ind])
+        gains_init0[test_ant_1_ind] -= delta_gain / 2
+        jac0 = cost_function_calculations.jacobian_skycal(
+            gains_init0,
+            caldata_obj.model_visibilities[:, :, test_freq_ind, test_pol_ind],
+            caldata_obj.data_visibilities[:, :, test_freq_ind, test_pol_ind],
+            caldata_obj.visibility_weights[:, :, test_freq_ind, test_pol_ind],
+            caldata_obj.ant1_inds,
+            caldata_obj.ant2_inds,
+            caldata_obj.lambda_val,
+        )
+        gains_init1 = np.copy(gains_init[:, test_freq_ind])
+        gains_init1[test_ant_1_ind] += delta_gain / 2
+        jac1 = cost_function_calculations.jacobian_skycal(
+            gains_init1,
+            caldata_obj.model_visibilities[:, :, test_freq_ind, test_pol_ind],
+            caldata_obj.data_visibilities[:, :, test_freq_ind, test_pol_ind],
+            caldata_obj.visibility_weights[:, :, test_freq_ind, test_pol_ind],
+            caldata_obj.ant1_inds,
+            caldata_obj.ant2_inds,
+            caldata_obj.lambda_val,
+        )
+        (
+            hess_real_real,
+            hess_real_imag,
+            hess_imag_imag,
+        ) = cost_function_calculations.hessian_skycal(
+            gains_init[:, test_freq_ind],
+            caldata_obj.Nants,
+            caldata_obj.Nbls,
+            caldata_obj.model_visibilities[:, :, test_freq_ind, test_pol_ind],
+            caldata_obj.data_visibilities[:, :, test_freq_ind, test_pol_ind],
+            caldata_obj.visibility_weights[:, :, test_freq_ind, test_pol_ind],
+            caldata_obj.ant1_inds,
+            caldata_obj.ant2_inds,
+            caldata_obj.lambda_val,
+        )
+
+        # Test Hessian real-real component
+        grad_approx = np.real(jac1[test_ant_2_ind] - jac0[test_ant_2_ind]) / delta_gain
+        hess_value = hess_real_real[test_ant_1_ind, test_ant_2_ind]
+        if verbose:
+            print(f"Gradient approximation value: {grad_approx}")
+            print(f"Hessian value: {hess_value}")
+
+        np.testing.assert_allclose(grad_approx, hess_value, rtol=1e-5)
+
+        # Test Hessian real-imaginary component
+        grad_approx = np.imag(jac1[test_ant_2_ind] - jac0[test_ant_2_ind]) / delta_gain
+        hess_value = hess_real_imag[test_ant_1_ind, test_ant_2_ind]
+        if verbose:
+            print(f"Gradient approximation value: {grad_approx}")
+            print(f"Hessian value: {hess_value}")
+
+        np.testing.assert_allclose(grad_approx, hess_value, rtol=1e-5)
+
+    def test_hess_regularization_skycal_different_antennas_imaginary(
         self, verbose=False
     ):
 
@@ -724,100 +820,6 @@ class TestStringMethods(unittest.TestCase):
         gains_init = gains_init_real + gains_init_imag
 
         gains_init0 = np.copy(gains_init[:, test_freq_ind])
-        gains_init0[test_ant_1_ind] -= delta_gain / 2
-        jac0 = cost_function_calculations.jacobian_skycal(
-            gains_init0,
-            caldata_obj.model_visibilities[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.data_visibilities[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.visibility_weights[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.ant1_inds,
-            caldata_obj.ant2_inds,
-            caldata_obj.lambda_val,
-        )
-        gains_init1 = np.copy(gains_init[:, test_freq_ind])
-        gains_init1[test_ant_1_ind] += delta_gain / 2
-        jac1 = cost_function_calculations.jacobian_skycal(
-            gains_init1,
-            caldata_obj.model_visibilities[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.data_visibilities[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.visibility_weights[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.ant1_inds,
-            caldata_obj.ant2_inds,
-            caldata_obj.lambda_val,
-        )
-        (
-            hess_real_real,
-            hess_real_imag,
-            hess_imag_imag,
-        ) = cost_function_calculations.hessian_skycal(
-            gains_init[:, test_freq_ind],
-            caldata_obj.Nants,
-            caldata_obj.Nbls,
-            caldata_obj.model_visibilities[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.data_visibilities[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.visibility_weights[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.ant1_inds,
-            caldata_obj.ant2_inds,
-            caldata_obj.lambda_val,
-        )
-
-        # Test Hessian real-real component
-        grad_approx = np.real(jac1[test_ant_2_ind] - jac0[test_ant_2_ind]) / delta_gain
-        hess_value = hess_real_real[test_ant_1_ind, test_ant_2_ind]
-        if verbose:
-            print(f"Gradient approximation value: {grad_approx}")
-            print(f"Hessian value: {hess_value}")
-
-        np.testing.assert_allclose(grad_approx, hess_value, rtol=1e-5)
-
-        # Test Hessian real-imaginary component
-        grad_approx = np.imag(jac1[test_ant_2_ind] - jac0[test_ant_2_ind]) / delta_gain
-        hess_value = hess_real_imag[test_ant_1_ind, test_ant_2_ind]
-        if verbose:
-            print(f"Gradient approximation value: {grad_approx}")
-            print(f"Hessian value: {hess_value}")
-
-        np.testing.assert_allclose(grad_approx, hess_value, rtol=1e-5)
-
-    def test_hess_regularization_single_pol_different_antennas_imaginary(
-        self, verbose=False
-    ):
-
-        test_ant_1_ind = 10
-        test_ant_2_ind = 20
-        test_freq_ind = 0
-        test_pol_ind = 0
-        delta_gain = 1e-8
-        lambda_val = 1000
-        gain_stddev = 0.1
-
-        model = pyuvdata.UVData()
-        model.read(f"{THIS_DIR}/data/test_model_1freq.uvfits")
-        data = pyuvdata.UVData()
-        data.read(f"{THIS_DIR}/data/test_data_1freq.uvfits")
-
-        caldata_obj = caldata.CalData()
-        caldata_obj.load_data(data, model, lambda_val=lambda_val)
-
-        caldata_obj.visibility_weights = np.zeros_like(
-            caldata_obj.visibility_weights
-        )  # Don't test data
-
-        np.random.seed(0)
-        gains_init_real = np.random.normal(
-            1.0,
-            gain_stddev,
-            size=(caldata_obj.Nants, caldata_obj.Nfreqs),
-        )
-        np.random.seed(0)
-        gains_init_imag = 1.0j * np.random.normal(
-            0.0,
-            gain_stddev,
-            size=(caldata_obj.Nants, caldata_obj.Nfreqs),
-        )
-        gains_init = gains_init_real + gains_init_imag
-
-        gains_init0 = np.copy(gains_init[:, test_freq_ind])
         gains_init0[test_ant_1_ind] -= 1j * delta_gain / 2
         jac0 = cost_function_calculations.jacobian_skycal(
             gains_init0,
@@ -873,7 +875,7 @@ class TestStringMethods(unittest.TestCase):
 
         np.testing.assert_allclose(grad_approx, hess_value, rtol=1e-5)
 
-    def test_hess_regularization_single_pol_same_antenna_real(self, verbose=False):
+    def test_hess_regularization_skycal_same_antenna_real(self, verbose=False):
 
         test_ant_1_ind = 10
         test_ant_2_ind = 10
@@ -966,7 +968,7 @@ class TestStringMethods(unittest.TestCase):
         # Test if approx. consistent with zero
         np.testing.assert_allclose(grad_approx, hess_value, atol=1e-1)
 
-    def test_hess_regularization_single_pol_same_antenna_imaginary(self, verbose=False):
+    def test_hess_regularization_skycal_same_antenna_imaginary(self, verbose=False):
 
         test_ant_1_ind = 10
         test_ant_2_ind = 10
@@ -1110,7 +1112,7 @@ class TestStringMethods(unittest.TestCase):
 
         np.testing.assert_allclose(hess - np.conj(hess.T), 0.0 + 1j * 0.0)
 
-    def test_calibration_single_pol_identical_data_no_flags(self):
+    def test_calibration_skycal_identical_data_no_flags(self):
 
         model = pyuvdata.UVData()
         model.read(f"{THIS_DIR}/data/test_model_1freq.uvfits")
@@ -1152,7 +1154,7 @@ class TestStringMethods(unittest.TestCase):
             atol=1e-6,
         )
 
-    def test_calibration_single_pol_identical_data_with_flags(self):
+    def test_calibration_skycal_identical_data_with_flags(self):
 
         model = pyuvdata.UVData()
         model.read(f"{THIS_DIR}/data/test_model_1freq.uvfits")
@@ -1385,6 +1387,269 @@ class TestStringMethods(unittest.TestCase):
 
         np.testing.assert_allclose(crosspol_phase_new, crosspol_phase, atol=1e-8)
 
+    def test_calibration_gains_multiply_model_identical_data_no_flags(self):
+
+        model = pyuvdata.UVData()
+        model.read(f"{THIS_DIR}/data/test_model_1freq.uvfits")
+        data = model.copy()
+
+        caldata_obj = caldata.CalData()
+        caldata_obj.load_data(
+            data,
+            model,
+            gain_init_stddev=0.1,
+            lambda_val=100.0,
+            gains_multiply_model=True,
+        )
+
+        # Unflag all
+        caldata_obj.visibility_weights = np.ones(
+            (
+                caldata_obj.Ntimes,
+                caldata_obj.Nbls,
+                caldata_obj.Nfreqs,
+                4,
+            ),
+            dtype=float,
+        )
+
+        caldata_obj.sky_based_calibration(
+            xtol=1e-8,
+            parallel=False,
+        )
+
+        np.testing.assert_allclose(
+            np.abs(caldata_obj.gains),
+            np.full(
+                (caldata_obj.Nants, caldata_obj.Nfreqs, caldata_obj.N_feed_pols), 1.0
+            ),
+            atol=1e-6,
+        )
+        np.testing.assert_allclose(
+            np.angle(caldata_obj.gains),
+            np.full(
+                (caldata_obj.Nants, caldata_obj.Nfreqs, caldata_obj.N_feed_pols), 0.0
+            ),
+            atol=1e-6,
+        )
+
+    def test_calibration_gains_multiply_model_identical_data_with_flags(self):
+
+        model = pyuvdata.UVData()
+        model.read(f"{THIS_DIR}/data/test_model_1freq.uvfits")
+        data = model.copy()
+        data.data_array *= 1.2
+
+        caldata_obj = caldata.CalData()
+        caldata_obj.load_data(
+            data,
+            model,
+            gain_init_stddev=0.1,
+            lambda_val=100.0,
+            gains_multiply_model=True,
+        )
+
+        # Unflag all
+        caldata_obj.visibility_weights = np.ones(
+            (
+                caldata_obj.Ntimes,
+                caldata_obj.Nbls,
+                caldata_obj.Nfreqs,
+                4,
+            ),
+            dtype=float,
+        )
+        # Set flags
+        caldata_obj.visibility_weights[2, 10, 0, :] = 0.0
+        caldata_obj.visibility_weights[1, 20, 0, :] = 0.0
+
+        caldata_obj.sky_based_calibration(
+            xtol=1e-8,
+            parallel=False,
+        )
+
+        np.testing.assert_allclose(np.abs(caldata_obj.gains), np.sqrt(1.2), atol=1e-4)
+        np.testing.assert_allclose(np.angle(caldata_obj.gains), 0, atol=1e-6)
+
+    def test_jac_wrapper_skycal(self):
+
+        data = pyuvdata.UVData()
+        data.read(
+            f"{THIS_DIR}/data/ovro-lwa_data_1freq.uvfits"
+        )  # Use data with fully flagged antennas
+        model = pyuvdata.UVData()
+        model.read(f"{THIS_DIR}/data/ovro-lwa_model_1freq.uvfits")
+
+        for gains_multiply_model in [True, False]:
+            caldata_obj = caldata.CalData()
+            caldata_obj.load_data(
+                data,
+                model,
+                gain_init_calfile=None,
+                gain_init_to_vis_ratio=True,
+                gains_multiply_model=gains_multiply_model,
+                gain_init_stddev=0,
+                N_feed_pols=2,
+                feed_polarization_array=None,
+                min_cal_baseline_m=None,
+                max_cal_baseline_m=None,
+                min_cal_baseline_lambda=10,
+                max_cal_baseline_lambda=125,
+                lambda_val=100,
+            )
+
+            freq_ind = 0
+            feed_pol_ind = 0
+            feed_pol = -5
+            delta_gain = (
+                np.nanmean(np.abs(caldata_obj.gains)) / 1e7
+            )  # Scale by the mean gain amplitude
+
+            vis_pol_ind = np.where(caldata_obj.vis_polarization_array == feed_pol)[0]
+            vis_weights_summed = np.sum(
+                caldata_obj.visibility_weights[:, :, freq_ind, feed_pol_ind], axis=0
+            )  # Sum over times
+            weight_per_ant = np.bincount(
+                caldata_obj.ant1_inds,
+                weights=vis_weights_summed,
+                minlength=caldata_obj.Nants,
+            ) + np.bincount(
+                caldata_obj.ant2_inds,
+                weights=vis_weights_summed,
+                minlength=caldata_obj.Nants,
+            )
+            ant_inds = np.where(weight_per_ant > 0.0)[0]
+
+            gains_init_flattened = np.stack(
+                (
+                    np.real(caldata_obj.gains[ant_inds, freq_ind, feed_pol_ind]),
+                    np.imag(caldata_obj.gains[ant_inds, freq_ind, feed_pol_ind]),
+                ),
+                axis=1,
+            ).flatten()
+
+            for use_ind in range(len(gains_init_flattened)):
+                gains_init_0 = np.copy(gains_init_flattened)
+                gains_init_1 = np.copy(gains_init_flattened)
+                gains_init_0[use_ind] -= delta_gain / 2
+                gains_init_1[use_ind] += delta_gain / 2
+                cost0 = calibration_optimization.cost_skycal_wrapper(
+                    gains_init_0,
+                    caldata_obj,
+                    ant_inds,
+                    freq_ind,
+                    vis_pol_ind,
+                )
+                cost1 = calibration_optimization.cost_skycal_wrapper(
+                    gains_init_1,
+                    caldata_obj,
+                    ant_inds,
+                    freq_ind,
+                    vis_pol_ind,
+                )
+                approx_jac = (cost1 - cost0) / delta_gain
+                jac = calibration_optimization.jacobian_skycal_wrapper(
+                    gains_init_flattened,
+                    caldata_obj,
+                    ant_inds,
+                    freq_ind,
+                    vis_pol_ind,
+                )
+                np.testing.assert_allclose(approx_jac, jac[use_ind], rtol=1e-2)
+
+    def test_hess_wrapper_skycal(self):
+
+        data = pyuvdata.UVData()
+        data.read(
+            f"{THIS_DIR}/data/ovro-lwa_data_1freq.uvfits"
+        )  # Use data with fully flagged antennas
+        model = pyuvdata.UVData()
+        model.read(f"{THIS_DIR}/data/ovro-lwa_model_1freq.uvfits")
+
+        for gains_multiply_model in [True, False]:
+            caldata_obj = caldata.CalData()
+            caldata_obj.load_data(
+                data,
+                model,
+                gain_init_calfile=None,
+                gain_init_to_vis_ratio=True,
+                gains_multiply_model=gains_multiply_model,
+                gain_init_stddev=0,
+                N_feed_pols=2,
+                feed_polarization_array=None,
+                min_cal_baseline_m=None,
+                max_cal_baseline_m=None,
+                min_cal_baseline_lambda=10,
+                max_cal_baseline_lambda=125,
+                lambda_val=100,
+            )
+
+            freq_ind = 0
+            feed_pol_ind = 0
+            feed_pol = -5
+            delta_gain = (
+                np.nanmean(np.abs(caldata_obj.gains)) / 1e7
+            )  # Scale by the mean gain amplitude
+
+            vis_pol_ind = np.where(caldata_obj.vis_polarization_array == feed_pol)[0]
+            vis_weights_summed = np.sum(
+                caldata_obj.visibility_weights[:, :, freq_ind, feed_pol_ind], axis=0
+            )  # Sum over times
+            weight_per_ant = np.bincount(
+                caldata_obj.ant1_inds,
+                weights=vis_weights_summed,
+                minlength=caldata_obj.Nants,
+            ) + np.bincount(
+                caldata_obj.ant2_inds,
+                weights=vis_weights_summed,
+                minlength=caldata_obj.Nants,
+            )
+            ant_inds = np.where(weight_per_ant > 0.0)[0]
+
+            gains_init_flattened = np.stack(
+                (
+                    np.real(caldata_obj.gains[ant_inds, freq_ind, feed_pol_ind]),
+                    np.imag(caldata_obj.gains[ant_inds, freq_ind, feed_pol_ind]),
+                ),
+                axis=1,
+            ).flatten()
+
+            for use_ind in range(len(gains_init_flattened)):
+                gains_init_0 = np.copy(gains_init_flattened)
+                gains_init_1 = np.copy(gains_init_flattened)
+                gains_init_0[use_ind] -= delta_gain / 2
+                gains_init_1[use_ind] += delta_gain / 2
+                jac0 = calibration_optimization.jacobian_skycal_wrapper(
+                    gains_init_0,
+                    caldata_obj,
+                    ant_inds,
+                    freq_ind,
+                    vis_pol_ind,
+                )
+                jac1 = calibration_optimization.jacobian_skycal_wrapper(
+                    gains_init_1,
+                    caldata_obj,
+                    ant_inds,
+                    freq_ind,
+                    vis_pol_ind,
+                )
+                approx_hess = (jac1 - jac0) / delta_gain
+                hess = calibration_optimization.hessian_skycal_wrapper(
+                    gains_init_flattened,
+                    caldata_obj,
+                    ant_inds,
+                    freq_ind,
+                    vis_pol_ind,
+                )
+                np.testing.assert_allclose(
+                    approx_hess,
+                    hess[:, use_ind],
+                    rtol=1e-2,
+                    atol=np.nanmean(np.abs(hess[:, use_ind])) / 1e6,
+                )
+
+    ################ ABSCAL TESTS ################
+
     def test_abscal_amp_jac(self, verbose=False):
 
         test_freq_ind = 0
@@ -1583,6 +1848,8 @@ class TestStringMethods(unittest.TestCase):
             inplace=True,
         )
         np.testing.assert_allclose(data.data_array, model.data_array, rtol=1e-3)
+
+    ################ DELAY-WEIGHTED ABSCAL TESTS ################
 
     def test_dwabscal_amp_jac(self, verbose=False):
 
@@ -2487,90 +2754,6 @@ class TestStringMethods(unittest.TestCase):
             np.testing.assert_allclose(
                 hess_approx, hess[:, test_parameter_ind], rtol=1e-4
             )
-
-    def test_calibration_gains_multiply_model_identical_data_no_flags(self):
-
-        model = pyuvdata.UVData()
-        model.read(f"{THIS_DIR}/data/test_model_1freq.uvfits")
-        data = model.copy()
-
-        caldata_obj = caldata.CalData()
-        caldata_obj.load_data(
-            data,
-            model,
-            gain_init_stddev=0.1,
-            lambda_val=100.0,
-            gains_multiply_model=True,
-        )
-
-        # Unflag all
-        caldata_obj.visibility_weights = np.ones(
-            (
-                caldata_obj.Ntimes,
-                caldata_obj.Nbls,
-                caldata_obj.Nfreqs,
-                4,
-            ),
-            dtype=float,
-        )
-
-        caldata_obj.sky_based_calibration(
-            xtol=1e-8,
-            parallel=False,
-        )
-
-        np.testing.assert_allclose(
-            np.abs(caldata_obj.gains),
-            np.full(
-                (caldata_obj.Nants, caldata_obj.Nfreqs, caldata_obj.N_feed_pols), 1.0
-            ),
-            atol=1e-6,
-        )
-        np.testing.assert_allclose(
-            np.angle(caldata_obj.gains),
-            np.full(
-                (caldata_obj.Nants, caldata_obj.Nfreqs, caldata_obj.N_feed_pols), 0.0
-            ),
-            atol=1e-6,
-        )
-
-    def test_calibration_gains_multiply_model_identical_data_with_flags(self):
-
-        model = pyuvdata.UVData()
-        model.read(f"{THIS_DIR}/data/test_model_1freq.uvfits")
-        data = model.copy()
-        data.data_array *= 1.2
-
-        caldata_obj = caldata.CalData()
-        caldata_obj.load_data(
-            data,
-            model,
-            gain_init_stddev=0.1,
-            lambda_val=100.0,
-            gains_multiply_model=True,
-        )
-
-        # Unflag all
-        caldata_obj.visibility_weights = np.ones(
-            (
-                caldata_obj.Ntimes,
-                caldata_obj.Nbls,
-                caldata_obj.Nfreqs,
-                4,
-            ),
-            dtype=float,
-        )
-        # Set flags
-        caldata_obj.visibility_weights[2, 10, 0, :] = 0.0
-        caldata_obj.visibility_weights[1, 20, 0, :] = 0.0
-
-        caldata_obj.sky_based_calibration(
-            xtol=1e-8,
-            parallel=False,
-        )
-
-        np.testing.assert_allclose(np.abs(caldata_obj.gains), np.sqrt(1.2), atol=1e-4)
-        np.testing.assert_allclose(np.angle(caldata_obj.gains), 0, atol=1e-6)
 
 
 if __name__ == "__main__":
