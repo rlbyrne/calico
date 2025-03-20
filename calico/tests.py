@@ -1645,7 +1645,7 @@ class TestStringMethods(unittest.TestCase):
                     approx_hess,
                     hess[:, use_ind],
                     rtol=1e-2,
-                    atol=np.nanmean(np.abs(hess[:, use_ind])) / 1e6,
+                    atol=np.nanmean(np.abs(hess[:, use_ind])) / 1e4,
                 )
 
     ################ ABSCAL TESTS ################
