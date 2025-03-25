@@ -576,9 +576,9 @@ class CalData:
                                 flag_freq,
                                 flag_pol,
                             ] = True
-                    self.gains[nan_gains, feed_pol_ind] = (
-                        0.0  # Nans in the gains produce matrix multiplication errors, set to zero
-                    )
+                    # self.gains[nan_gains[0], nan_gains[1], feed_pol_ind] = (
+                    #    0.0 + 0.0*1j  # Nans in the gains produce matrix multiplication errors, set to zero
+                    # )
 
         # Free memory
         metadata_reference = None

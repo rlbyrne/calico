@@ -58,9 +58,13 @@ def calculate_per_antenna_cost(
         # Get total cost
         if parallel:
             for freq_ind in range(caldata_obj.Nfreqs):
+                use_gains = caldata_list[freq_ind].gains[:, 0, pol_ind]
+                use_gains[np.where(~np.isfinite(use_gains))[0]] = (
+                    0.0 + 1j * 0.0
+                )  # Remove nans
                 if caldata_list[freq_ind].gains_multiply_model:
                     args = (
-                        caldata_list[freq_ind].gains[:, 0, pol_ind],
+                        use_gains,
                         caldata_list[freq_ind].data_visibilities[:, :, 0, pol_ind],
                         caldata_list[freq_ind].model_visibilities[:, :, 0, pol_ind],
                         caldata_list[freq_ind].visibility_weights[:, :, 0, pol_ind],
@@ -70,7 +74,7 @@ def calculate_per_antenna_cost(
                     )
                 else:
                     args = (
-                        caldata_list[freq_ind].gains[:, 0, pol_ind],
+                        use_gains,
                         caldata_list[freq_ind].model_visibilities[:, :, 0, pol_ind],
                         caldata_list[freq_ind].data_visibilities[:, :, 0, pol_ind],
                         caldata_list[freq_ind].visibility_weights[:, :, 0, pol_ind],
@@ -81,10 +85,13 @@ def calculate_per_antenna_cost(
                 args_list.append(args)
         else:
             total_cost = 0.0
+            use_gains = caldata_obj.gains[:, :, pol_ind]
+            nan_gains = np.where(~np.isfinite(use_gains))
+            use_gains[nan_gains[0], nan_gains[1]] = 0.0 + 1j * 0.0  # Remove nans
             for freq_ind in range(caldata_obj.Nfreqs):
                 if caldata_obj.gains_multiply_model:
                     total_cost += cost_function_calculations.cost_skycal(
-                        caldata_obj.gains[:, freq_ind, pol_ind],
+                        use_gains[:, freq_ind],
                         caldata_obj.data_visibilities[:, :, freq_ind, pol_ind],
                         caldata_obj.model_visibilities[:, :, freq_ind, pol_ind],
                         caldata_obj.visibility_weights[:, :, freq_ind, pol_ind],
@@ -94,7 +101,7 @@ def calculate_per_antenna_cost(
                     )
                 else:
                     total_cost += cost_function_calculations.cost_skycal(
-                        caldata_obj.gains[:, freq_ind, pol_ind],
+                        use_gains[:, freq_ind],
                         caldata_obj.model_visibilities[:, :, freq_ind, pol_ind],
                         caldata_obj.data_visibilities[:, :, freq_ind, pol_ind],
                         caldata_obj.visibility_weights[:, :, freq_ind, pol_ind],
@@ -122,9 +129,13 @@ def calculate_per_antenna_cost(
             )
             if parallel:
                 for freq_ind in range(caldata_obj.Nfreqs):
+                    use_gains = caldata_list[freq_ind].gains[:, 0, pol_ind]
+                    use_gains[np.where(~np.isfinite(use_gains))[0]] = (
+                        0.0 + 1j * 0.0
+                    )  # Remove nans
                     if caldata_list[freq_ind].gains_multiply_model:
                         args = (
-                            caldata_list[freq_ind].gains[:, 0, pol_ind],
+                            use_gains,
                             caldata_list[freq_ind].data_visibilities[:, :, 0, pol_ind],
                             caldata_list[freq_ind].model_visibilities[:, :, 0, pol_ind],
                             ant_excluded_weights[:, :, freq_ind],
@@ -134,7 +145,7 @@ def calculate_per_antenna_cost(
                         )
                     else:
                         args = (
-                            caldata_list[freq_ind].gains[:, 0, pol_ind],
+                            use_gains,
                             caldata_list[freq_ind].model_visibilities[:, :, 0, pol_ind],
                             caldata_list[freq_ind].data_visibilities[:, :, 0, pol_ind],
                             ant_excluded_weights[:, :, freq_ind],
@@ -145,12 +156,15 @@ def calculate_per_antenna_cost(
                     args_list.append(args)
             else:
                 per_ant_cost[ant_ind, pol_ind] = total_cost
+                use_gains = caldata_obj.gains[:, :, pol_ind]
+                nan_gains = np.where(~np.isfinite(use_gains))
+                use_gains[nan_gains[0], nan_gains[1]] = 0.0 + 1j * 0.0  # Remove nans
                 for freq_ind in range(caldata_obj.Nfreqs):
                     if caldata_obj.gains_multiply_model:
                         per_ant_cost[
                             ant_ind, pol_ind
                         ] -= cost_function_calculations.cost_skycal(
-                            caldata_obj.gains[:, freq_ind, pol_ind],
+                            use_gains[:, freq_ind],
                             caldata_obj.data_visibilities[:, :, freq_ind, pol_ind],
                             caldata_obj.model_visibilities[:, :, freq_ind, pol_ind],
                             ant_excluded_weights[:, :, freq_ind],
@@ -162,7 +176,7 @@ def calculate_per_antenna_cost(
                         per_ant_cost[
                             ant_ind, pol_ind
                         ] -= cost_function_calculations.cost_skycal(
-                            caldata_obj.gains[:, freq_ind, pol_ind],
+                            use_gains[:, freq_ind],
                             caldata_obj.model_visibilities[:, :, freq_ind, pol_ind],
                             caldata_obj.data_visibilities[:, :, freq_ind, pol_ind],
                             ant_excluded_weights[:, :, freq_ind],

@@ -249,10 +249,10 @@ def sky_based_calibration_wrapper(
         )
         if verbose:
             print(
-                f"Initial calibration optimization done. Antenna flagging iteration {ant_flag_iter+1} of {antenna_flagging_iterations}."
+                f"Optimization time: {caldata_obj.Nfreqs} frequency channels in {(time.time() - optimization_start_time)/60.} minutes."
             )
             print(
-                f"Optimization time: {caldata_obj.Nfreqs} frequency channels in {(time.time() - optimization_start_time)/60.} minutes."
+                f"Initial calibration optimization done. Antenna flagging iteration {ant_flag_iter+1} of {antenna_flagging_iterations}."
             )
             sys.stdout.flush()
         caldata_obj.flag_antennas_from_per_ant_cost(
