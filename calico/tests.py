@@ -31,10 +31,10 @@ class TestStringMethods(unittest.TestCase):
         caldata_obj.load_data(data, model)
 
         cost = cost_function_calculations.cost_skycal(
-            caldata_obj.gains[:, test_freq_ind, 0],
-            caldata_obj.model_visibilities[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.data_visibilities[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.visibility_weights[:, :, test_freq_ind, test_pol_ind],
+            caldata_obj.gains[:, [[test_freq_ind]], [[0]]],
+            caldata_obj.model_visibilities[:, :, [[test_freq_ind]], [[test_pol_ind]]],
+            caldata_obj.data_visibilities[:, :, [[test_freq_ind]], [[test_pol_ind]]],
+            caldata_obj.visibility_weights[:, :, [[test_freq_ind]], [[test_pol_ind]]],
             caldata_obj.ant1_inds,
             caldata_obj.ant2_inds,
             caldata_obj.lambda_val,
@@ -76,10 +76,10 @@ class TestStringMethods(unittest.TestCase):
         gains_init0 = np.copy(gains_init[:, test_freq_ind])
         gains_init0[test_ant_ind] -= delta_gain / 2
         cost0 = cost_function_calculations.cost_skycal(
-            gains_init0,
-            caldata_obj.model_visibilities[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.data_visibilities[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.visibility_weights[:, :, test_freq_ind, test_pol_ind],
+            gains_init0[:, np.newaxis, np.newaxis],
+            caldata_obj.model_visibilities[:, :, [[test_freq_ind]], [[test_pol_ind]]],
+            caldata_obj.data_visibilities[:, :, [[test_freq_ind]], [[test_pol_ind]]],
+            caldata_obj.visibility_weights[:, :, [[test_freq_ind]], [[test_pol_ind]]],
             caldata_obj.ant1_inds,
             caldata_obj.ant2_inds,
             caldata_obj.lambda_val,
@@ -88,19 +88,19 @@ class TestStringMethods(unittest.TestCase):
         gains_init1 = np.copy(gains_init[:, test_freq_ind])
         gains_init1[test_ant_ind] += delta_gain / 2
         cost1 = cost_function_calculations.cost_skycal(
-            gains_init1,
-            caldata_obj.model_visibilities[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.data_visibilities[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.visibility_weights[:, :, test_freq_ind, test_pol_ind],
+            gains_init1[:, np.newaxis, np.newaxis],
+            caldata_obj.model_visibilities[:, :, [[test_freq_ind]], [[test_pol_ind]]],
+            caldata_obj.data_visibilities[:, :, [[test_freq_ind]], [[test_pol_ind]]],
+            caldata_obj.visibility_weights[:, :, [[test_freq_ind]], [[test_pol_ind]]],
             caldata_obj.ant1_inds,
             caldata_obj.ant2_inds,
             caldata_obj.lambda_val,
         )
         jac = cost_function_calculations.jacobian_skycal(
-            gains_init[:, test_freq_ind],
-            caldata_obj.model_visibilities[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.data_visibilities[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.visibility_weights[:, :, test_freq_ind, test_pol_ind],
+            gains_init[:, [test_freq_ind], np.newaxis],
+            caldata_obj.model_visibilities[:, :, [[test_freq_ind]], [[test_pol_ind]]],
+            caldata_obj.data_visibilities[:, :, [[test_freq_ind]], [[test_pol_ind]]],
+            caldata_obj.visibility_weights[:, :, [[test_freq_ind]], [[test_pol_ind]]],
             caldata_obj.ant1_inds,
             caldata_obj.ant2_inds,
             caldata_obj.lambda_val,
@@ -148,10 +148,10 @@ class TestStringMethods(unittest.TestCase):
         gains_init0 = np.copy(gains_init[:, test_freq_ind])
         gains_init0[test_ant_ind] -= 1j * delta_gain / 2
         cost0 = cost_function_calculations.cost_skycal(
-            gains_init0,
-            caldata_obj.model_visibilities[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.data_visibilities[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.visibility_weights[:, :, test_freq_ind, test_pol_ind],
+            gains_init0[:, np.newaxis, np.newaxis],
+            caldata_obj.model_visibilities[:, :, [[test_freq_ind]], [[test_pol_ind]]],
+            caldata_obj.data_visibilities[:, :, [[test_freq_ind]], [[test_pol_ind]]],
+            caldata_obj.visibility_weights[:, :, [[test_freq_ind]], [[test_pol_ind]]],
             caldata_obj.ant1_inds,
             caldata_obj.ant2_inds,
             caldata_obj.lambda_val,
@@ -159,26 +159,26 @@ class TestStringMethods(unittest.TestCase):
         gains_init1 = np.copy(gains_init[:, test_freq_ind])
         gains_init1[test_ant_ind] += 1j * delta_gain / 2
         cost1 = cost_function_calculations.cost_skycal(
-            gains_init1,
-            caldata_obj.model_visibilities[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.data_visibilities[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.visibility_weights[:, :, test_freq_ind, test_pol_ind],
+            gains_init1[:, np.newaxis, np.newaxis],
+            caldata_obj.model_visibilities[:, :, [[test_freq_ind]], [[test_pol_ind]]],
+            caldata_obj.data_visibilities[:, :, [[test_freq_ind]], [[test_pol_ind]]],
+            caldata_obj.visibility_weights[:, :, [[test_freq_ind]], [[test_pol_ind]]],
             caldata_obj.ant1_inds,
             caldata_obj.ant2_inds,
             caldata_obj.lambda_val,
         )
         jac = cost_function_calculations.jacobian_skycal(
-            gains_init[:, test_freq_ind],
-            caldata_obj.model_visibilities[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.data_visibilities[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.visibility_weights[:, :, test_freq_ind, test_pol_ind],
+            gains_init[:, [test_freq_ind], np.newaxis],
+            caldata_obj.model_visibilities[:, :, [[test_freq_ind]], [[test_pol_ind]]],
+            caldata_obj.data_visibilities[:, :, [[test_freq_ind]], [[test_pol_ind]]],
+            caldata_obj.visibility_weights[:, :, [[test_freq_ind]], [[test_pol_ind]]],
             caldata_obj.ant1_inds,
             caldata_obj.ant2_inds,
             caldata_obj.lambda_val,
         )
 
         grad_approx = (cost1 - cost0) / delta_gain
-        jac_value = np.imag(jac[test_ant_ind])
+        jac_value = np.imag(jac[test_ant_ind, 0, 0])
         if verbose:
             print(f"Gradient approximation value: {grad_approx}")
             print(f"Jacobian value: {jac_value}")
@@ -223,10 +223,10 @@ class TestStringMethods(unittest.TestCase):
         gains_init0 = np.copy(gains_init[:, test_freq_ind])
         gains_init0[test_ant_ind] -= delta_gain / 2
         cost0 = cost_function_calculations.cost_skycal(
-            gains_init0,
-            caldata_obj.model_visibilities[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.data_visibilities[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.visibility_weights[:, :, test_freq_ind, test_pol_ind],
+            gains_init0[:, np.newaxis, np.newaxis],
+            caldata_obj.model_visibilities[:, :, [[test_freq_ind]], [[test_pol_ind]]],
+            caldata_obj.data_visibilities[:, :, [[test_freq_ind]], [[test_pol_ind]]],
+            caldata_obj.visibility_weights[:, :, [[test_freq_ind]], [[test_pol_ind]]],
             caldata_obj.ant1_inds,
             caldata_obj.ant2_inds,
             caldata_obj.lambda_val,
@@ -234,26 +234,26 @@ class TestStringMethods(unittest.TestCase):
         gains_init1 = np.copy(gains_init[:, test_freq_ind])
         gains_init1[test_ant_ind] += delta_gain / 2
         cost1 = cost_function_calculations.cost_skycal(
-            gains_init1,
-            caldata_obj.model_visibilities[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.data_visibilities[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.visibility_weights[:, :, test_freq_ind, test_pol_ind],
+            gains_init1[:, np.newaxis, np.newaxis],
+            caldata_obj.model_visibilities[:, :, [[test_freq_ind]], [[test_pol_ind]]],
+            caldata_obj.data_visibilities[:, :, [[test_freq_ind]], [[test_pol_ind]]],
+            caldata_obj.visibility_weights[:, :, [[test_freq_ind]], [[test_pol_ind]]],
             caldata_obj.ant1_inds,
             caldata_obj.ant2_inds,
             caldata_obj.lambda_val,
         )
         jac = cost_function_calculations.jacobian_skycal(
-            gains_init[:, test_freq_ind],
-            caldata_obj.model_visibilities[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.data_visibilities[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.visibility_weights[:, :, test_freq_ind, test_pol_ind],
+            gains_init[:, [test_freq_ind], np.newaxis],
+            caldata_obj.model_visibilities[:, :, [[test_freq_ind]], [[test_pol_ind]]],
+            caldata_obj.data_visibilities[:, :, [[test_freq_ind]], [[test_pol_ind]]],
+            caldata_obj.visibility_weights[:, :, [[test_freq_ind]], [[test_pol_ind]]],
             caldata_obj.ant1_inds,
             caldata_obj.ant2_inds,
             caldata_obj.lambda_val,
         )
 
         grad_approx = (cost1 - cost0) / delta_gain
-        jac_value = np.real(jac[test_ant_ind])
+        jac_value = np.real(jac[test_ant_ind, 0, 0])
         if verbose:
             print(f"Gradient approximation value: {grad_approx}")
             print(f"Jacobian value: {jac_value}")
@@ -298,10 +298,10 @@ class TestStringMethods(unittest.TestCase):
         gains_init0 = np.copy(gains_init[:, test_freq_ind])
         gains_init0[test_ant_ind] -= 1j * delta_gain / 2
         cost0 = cost_function_calculations.cost_skycal(
-            gains_init0,
-            caldata_obj.model_visibilities[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.data_visibilities[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.visibility_weights[:, :, test_freq_ind, test_pol_ind],
+            gains_init0[:, np.newaxis, np.newaxis],
+            caldata_obj.model_visibilities[:, :, [[test_freq_ind]], [[test_pol_ind]]],
+            caldata_obj.data_visibilities[:, :, [[test_freq_ind]], [[test_pol_ind]]],
+            caldata_obj.visibility_weights[:, :, [[test_freq_ind]], [[test_pol_ind]]],
             caldata_obj.ant1_inds,
             caldata_obj.ant2_inds,
             caldata_obj.lambda_val,
@@ -309,26 +309,26 @@ class TestStringMethods(unittest.TestCase):
         gains_init1 = np.copy(gains_init[:, test_freq_ind])
         gains_init1[test_ant_ind] += 1j * delta_gain / 2
         cost1 = cost_function_calculations.cost_skycal(
-            gains_init1,
-            caldata_obj.model_visibilities[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.data_visibilities[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.visibility_weights[:, :, test_freq_ind, test_pol_ind],
+            gains_init1[:, np.newaxis, np.newaxis],
+            caldata_obj.model_visibilities[:, :, [[test_freq_ind]], [[test_pol_ind]]],
+            caldata_obj.data_visibilities[:, :, [[test_freq_ind]], [[test_pol_ind]]],
+            caldata_obj.visibility_weights[:, :, [[test_freq_ind]], [[test_pol_ind]]],
             caldata_obj.ant1_inds,
             caldata_obj.ant2_inds,
             caldata_obj.lambda_val,
         )
         jac = cost_function_calculations.jacobian_skycal(
-            gains_init[:, test_freq_ind],
-            caldata_obj.model_visibilities[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.data_visibilities[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.visibility_weights[:, :, test_freq_ind, test_pol_ind],
+            gains_init[:, [test_freq_ind], np.newaxis],
+            caldata_obj.model_visibilities[:, :, [[test_freq_ind]], [[test_pol_ind]]],
+            caldata_obj.data_visibilities[:, :, [[test_freq_ind]], [[test_pol_ind]]],
+            caldata_obj.visibility_weights[:, :, [[test_freq_ind]], [[test_pol_ind]]],
             caldata_obj.ant1_inds,
             caldata_obj.ant2_inds,
             caldata_obj.lambda_val,
         )
 
         grad_approx = (cost1 - cost0) / delta_gain
-        jac_value = np.imag(jac[test_ant_ind])
+        jac_value = np.imag(jac[test_ant_ind, 0, 0])
         if verbose:
             print(f"Gradient approximation value: {grad_approx}")
             print(f"Jacobian value: {jac_value}")
@@ -370,10 +370,10 @@ class TestStringMethods(unittest.TestCase):
         gains_init0 = np.copy(gains_init[:, test_freq_ind])
         gains_init0[test_ant_1_ind] -= delta_gain / 2
         jac0 = cost_function_calculations.jacobian_skycal(
-            gains_init0,
-            caldata_obj.model_visibilities[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.data_visibilities[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.visibility_weights[:, :, test_freq_ind, test_pol_ind],
+            gains_init0[:, np.newaxis, np.newaxis],
+            caldata_obj.model_visibilities[:, :, [[test_freq_ind]], [[test_pol_ind]]],
+            caldata_obj.data_visibilities[:, :, [[test_freq_ind]], [[test_pol_ind]]],
+            caldata_obj.visibility_weights[:, :, [[test_freq_ind]], [[test_pol_ind]]],
             caldata_obj.ant1_inds,
             caldata_obj.ant2_inds,
             caldata_obj.lambda_val,
@@ -381,10 +381,10 @@ class TestStringMethods(unittest.TestCase):
         gains_init1 = np.copy(gains_init[:, test_freq_ind])
         gains_init1[test_ant_1_ind] += delta_gain / 2
         jac1 = cost_function_calculations.jacobian_skycal(
-            gains_init1,
-            caldata_obj.model_visibilities[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.data_visibilities[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.visibility_weights[:, :, test_freq_ind, test_pol_ind],
+            gains_init1[:, np.newaxis, np.newaxis],
+            caldata_obj.model_visibilities[:, :, [[test_freq_ind]], [[test_pol_ind]]],
+            caldata_obj.data_visibilities[:, :, [[test_freq_ind]], [[test_pol_ind]]],
+            caldata_obj.visibility_weights[:, :, [[test_freq_ind]], [[test_pol_ind]]],
             caldata_obj.ant1_inds,
             caldata_obj.ant2_inds,
             caldata_obj.lambda_val,
@@ -394,20 +394,23 @@ class TestStringMethods(unittest.TestCase):
             hess_real_imag,
             hess_imag_imag,
         ) = cost_function_calculations.hessian_skycal(
-            gains_init[:, test_freq_ind],
+            gains_init[:, [test_freq_ind], np.newaxis],
             caldata_obj.Nants,
             caldata_obj.Nbls,
-            caldata_obj.model_visibilities[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.data_visibilities[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.visibility_weights[:, :, test_freq_ind, test_pol_ind],
+            caldata_obj.model_visibilities[:, :, [[test_freq_ind]], [[test_pol_ind]]],
+            caldata_obj.data_visibilities[:, :, [[test_freq_ind]], [[test_pol_ind]]],
+            caldata_obj.visibility_weights[:, :, [[test_freq_ind]], [[test_pol_ind]]],
             caldata_obj.ant1_inds,
             caldata_obj.ant2_inds,
             caldata_obj.lambda_val,
         )
 
         # Test Hessian real-real component
-        grad_approx = np.real(jac1[test_ant_2_ind] - jac0[test_ant_2_ind]) / delta_gain
-        hess_value = hess_real_real[test_ant_1_ind, test_ant_2_ind]
+        grad_approx = (
+            np.real(jac1[test_ant_2_ind, 0, 0] - jac0[test_ant_2_ind, 0, 0])
+            / delta_gain
+        )
+        hess_value = hess_real_real[test_ant_1_ind, test_ant_2_ind, 0, 0]
         if verbose:
             print(f"Gradient approximation value: {grad_approx}")
             print(f"Hessian value: {hess_value}")
@@ -458,10 +461,10 @@ class TestStringMethods(unittest.TestCase):
         gains_init0 = np.copy(gains_init[:, test_freq_ind])
         gains_init0[test_ant_1_ind] -= 1j * delta_gain / 2
         jac0 = cost_function_calculations.jacobian_skycal(
-            gains_init0,
-            caldata_obj.model_visibilities[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.data_visibilities[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.visibility_weights[:, :, test_freq_ind, test_pol_ind],
+            gains_init0[:, np.newaxis, np.newaxis],
+            caldata_obj.model_visibilities[:, :, [[test_freq_ind]], [[test_pol_ind]]],
+            caldata_obj.data_visibilities[:, :, [[test_freq_ind]], [[test_pol_ind]]],
+            caldata_obj.visibility_weights[:, :, [[test_freq_ind]], [[test_pol_ind]]],
             caldata_obj.ant1_inds,
             caldata_obj.ant2_inds,
             caldata_obj.lambda_val,
@@ -469,10 +472,10 @@ class TestStringMethods(unittest.TestCase):
         gains_init1 = np.copy(gains_init[:, test_freq_ind])
         gains_init1[test_ant_1_ind] += 1j * delta_gain / 2
         jac1 = cost_function_calculations.jacobian_skycal(
-            gains_init1,
-            caldata_obj.model_visibilities[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.data_visibilities[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.visibility_weights[:, :, test_freq_ind, test_pol_ind],
+            gains_init1[:, np.newaxis, np.newaxis],
+            caldata_obj.model_visibilities[:, :, [[test_freq_ind]], [[test_pol_ind]]],
+            caldata_obj.data_visibilities[:, :, [[test_freq_ind]], [[test_pol_ind]]],
+            caldata_obj.visibility_weights[:, :, [[test_freq_ind]], [[test_pol_ind]]],
             caldata_obj.ant1_inds,
             caldata_obj.ant2_inds,
             caldata_obj.lambda_val,
@@ -482,20 +485,23 @@ class TestStringMethods(unittest.TestCase):
             hess_real_imag,
             hess_imag_imag,
         ) = cost_function_calculations.hessian_skycal(
-            gains_init[:, test_freq_ind],
+            gains_init[:, [test_freq_ind], np.newaxis],
             caldata_obj.Nants,
             caldata_obj.Nbls,
-            caldata_obj.model_visibilities[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.data_visibilities[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.visibility_weights[:, :, test_freq_ind, test_pol_ind],
+            caldata_obj.model_visibilities[:, :, [[test_freq_ind]], [[test_pol_ind]]],
+            caldata_obj.data_visibilities[:, :, [[test_freq_ind]], [[test_pol_ind]]],
+            caldata_obj.visibility_weights[:, :, [[test_freq_ind]], [[test_pol_ind]]],
             caldata_obj.ant1_inds,
             caldata_obj.ant2_inds,
             caldata_obj.lambda_val,
         )
 
         # Test Hessian imaginary-real component
-        grad_approx = np.real(jac1[test_ant_2_ind] - jac0[test_ant_2_ind]) / delta_gain
-        hess_value = hess_real_imag[test_ant_2_ind, test_ant_1_ind]
+        grad_approx = (
+            np.real(jac1[test_ant_2_ind, 0, 0] - jac0[test_ant_2_ind, 0, 0])
+            / delta_gain
+        )
+        hess_value = hess_real_imag[test_ant_2_ind, test_ant_1_ind, 0, 0]
         if verbose:
             print(f"Gradient approximation value: {grad_approx}")
             print(f"Hessian value: {hess_value}")
@@ -503,8 +509,11 @@ class TestStringMethods(unittest.TestCase):
         np.testing.assert_allclose(grad_approx, hess_value, rtol=1e-5)
 
         # Test Hessian imaginary-imaginary component
-        grad_approx = np.imag(jac1[test_ant_2_ind] - jac0[test_ant_2_ind]) / delta_gain
-        hess_value = hess_imag_imag[test_ant_1_ind, test_ant_2_ind]
+        grad_approx = (
+            np.imag(jac1[test_ant_2_ind, 0, 0] - jac0[test_ant_2_ind, 0, 0])
+            / delta_gain
+        )
+        hess_value = hess_imag_imag[test_ant_1_ind, test_ant_2_ind, 0, 0]
         if verbose:
             print(f"Gradient approximation value: {grad_approx}")
             print(f"Hessian value: {hess_value}")
@@ -546,10 +555,10 @@ class TestStringMethods(unittest.TestCase):
         gains_init0 = np.copy(gains_init[:, test_freq_ind])
         gains_init0[test_ant_1_ind] -= delta_gain / 2
         jac0 = cost_function_calculations.jacobian_skycal(
-            gains_init0,
-            caldata_obj.model_visibilities[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.data_visibilities[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.visibility_weights[:, :, test_freq_ind, test_pol_ind],
+            gains_init0[:, np.newaxis, np.newaxis],
+            caldata_obj.model_visibilities[:, :, [[test_freq_ind]], [[test_pol_ind]]],
+            caldata_obj.data_visibilities[:, :, [[test_freq_ind]], [[test_pol_ind]]],
+            caldata_obj.visibility_weights[:, :, [[test_freq_ind]], [[test_pol_ind]]],
             caldata_obj.ant1_inds,
             caldata_obj.ant2_inds,
             caldata_obj.lambda_val,
@@ -557,10 +566,10 @@ class TestStringMethods(unittest.TestCase):
         gains_init1 = np.copy(gains_init[:, test_freq_ind])
         gains_init1[test_ant_1_ind] += delta_gain / 2
         jac1 = cost_function_calculations.jacobian_skycal(
-            gains_init1,
-            caldata_obj.model_visibilities[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.data_visibilities[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.visibility_weights[:, :, test_freq_ind, test_pol_ind],
+            gains_init1[:, np.newaxis, np.newaxis],
+            caldata_obj.model_visibilities[:, :, [[test_freq_ind]], [[test_pol_ind]]],
+            caldata_obj.data_visibilities[:, :, [[test_freq_ind]], [[test_pol_ind]]],
+            caldata_obj.visibility_weights[:, :, [[test_freq_ind]], [[test_pol_ind]]],
             caldata_obj.ant1_inds,
             caldata_obj.ant2_inds,
             caldata_obj.lambda_val,
@@ -570,20 +579,23 @@ class TestStringMethods(unittest.TestCase):
             hess_real_imag,
             hess_imag_imag,
         ) = cost_function_calculations.hessian_skycal(
-            gains_init[:, test_freq_ind],
+            gains_init[:, [test_freq_ind], np.newaxis],
             caldata_obj.Nants,
             caldata_obj.Nbls,
-            caldata_obj.model_visibilities[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.data_visibilities[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.visibility_weights[:, :, test_freq_ind, test_pol_ind],
+            caldata_obj.model_visibilities[:, :, [[test_freq_ind]], [[test_pol_ind]]],
+            caldata_obj.data_visibilities[:, :, [[test_freq_ind]], [[test_pol_ind]]],
+            caldata_obj.visibility_weights[:, :, [[test_freq_ind]], [[test_pol_ind]]],
             caldata_obj.ant1_inds,
             caldata_obj.ant2_inds,
             caldata_obj.lambda_val,
         )
 
         # Test Hessian real-real component
-        grad_approx = np.real(jac1[test_ant_2_ind] - jac0[test_ant_2_ind]) / delta_gain
-        hess_value = hess_real_real[test_ant_1_ind, test_ant_2_ind]
+        grad_approx = (
+            np.real(jac1[test_ant_2_ind, 0, 0] - jac0[test_ant_2_ind, 0, 0])
+            / delta_gain
+        )
+        hess_value = hess_real_real[test_ant_1_ind, test_ant_2_ind, 0, 0]
         if verbose:
             print(f"Gradient approximation value: {grad_approx}")
             print(f"Hessian value: {hess_value}")
@@ -591,8 +603,11 @@ class TestStringMethods(unittest.TestCase):
         np.testing.assert_allclose(grad_approx, hess_value, rtol=1e-5)
 
         # Test Hessian real-imaginary component
-        grad_approx = np.imag(jac1[test_ant_2_ind] - jac0[test_ant_2_ind]) / delta_gain
-        hess_value = hess_real_imag[test_ant_1_ind, test_ant_2_ind]
+        grad_approx = (
+            np.imag(jac1[test_ant_2_ind, 0, 0] - jac0[test_ant_2_ind, 0, 0])
+            / delta_gain
+        )
+        hess_value = hess_real_imag[test_ant_1_ind, test_ant_2_ind, 0, 0]
         if verbose:
             print(f"Gradient approximation value: {grad_approx}")
             print(f"Hessian value: {hess_value}")
@@ -635,10 +650,10 @@ class TestStringMethods(unittest.TestCase):
         gains_init0 = np.copy(gains_init[:, test_freq_ind])
         gains_init0[test_ant_1_ind] -= 1j * delta_gain / 2
         jac0 = cost_function_calculations.jacobian_skycal(
-            gains_init0,
-            caldata_obj.model_visibilities[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.data_visibilities[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.visibility_weights[:, :, test_freq_ind, test_pol_ind],
+            gains_init0[:, np.newaxis, np.newaxis],
+            caldata_obj.model_visibilities[:, :, [[test_freq_ind]], [[test_pol_ind]]],
+            caldata_obj.data_visibilities[:, :, [[test_freq_ind]], [[test_pol_ind]]],
+            caldata_obj.visibility_weights[:, :, [[test_freq_ind]], [[test_pol_ind]]],
             caldata_obj.ant1_inds,
             caldata_obj.ant2_inds,
             caldata_obj.lambda_val,
@@ -646,10 +661,10 @@ class TestStringMethods(unittest.TestCase):
         gains_init1 = np.copy(gains_init[:, test_freq_ind])
         gains_init1[test_ant_1_ind] += 1j * delta_gain / 2
         jac1 = cost_function_calculations.jacobian_skycal(
-            gains_init1,
-            caldata_obj.model_visibilities[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.data_visibilities[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.visibility_weights[:, :, test_freq_ind, test_pol_ind],
+            gains_init1[:, np.newaxis, np.newaxis],
+            caldata_obj.model_visibilities[:, :, [[test_freq_ind]], [[test_pol_ind]]],
+            caldata_obj.data_visibilities[:, :, [[test_freq_ind]], [[test_pol_ind]]],
+            caldata_obj.visibility_weights[:, :, [[test_freq_ind]], [[test_pol_ind]]],
             caldata_obj.ant1_inds,
             caldata_obj.ant2_inds,
             caldata_obj.lambda_val,
@@ -659,20 +674,23 @@ class TestStringMethods(unittest.TestCase):
             hess_real_imag,
             hess_imag_imag,
         ) = cost_function_calculations.hessian_skycal(
-            gains_init[:, test_freq_ind],
+            gains_init[:, [test_freq_ind], np.newaxis],
             caldata_obj.Nants,
             caldata_obj.Nbls,
-            caldata_obj.model_visibilities[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.data_visibilities[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.visibility_weights[:, :, test_freq_ind, test_pol_ind],
+            caldata_obj.model_visibilities[:, :, [[test_freq_ind]], [[test_pol_ind]]],
+            caldata_obj.data_visibilities[:, :, [[test_freq_ind]], [[test_pol_ind]]],
+            caldata_obj.visibility_weights[:, :, [[test_freq_ind]], [[test_pol_ind]]],
             caldata_obj.ant1_inds,
             caldata_obj.ant2_inds,
             caldata_obj.lambda_val,
         )
 
         # Test Hessian imaginary-real component
-        grad_approx = np.real(jac1[test_ant_2_ind] - jac0[test_ant_2_ind]) / delta_gain
-        hess_value = hess_real_imag[test_ant_2_ind, test_ant_1_ind]
+        grad_approx = (
+            np.real(jac1[test_ant_2_ind, 0, 0] - jac0[test_ant_2_ind, 0, 0])
+            / delta_gain
+        )
+        hess_value = hess_real_imag[test_ant_2_ind, test_ant_1_ind, 0, 0]
         if verbose:
             print(f"Gradient approximation value: {grad_approx}")
             print(f"Hessian value: {hess_value}")
@@ -681,8 +699,11 @@ class TestStringMethods(unittest.TestCase):
         np.testing.assert_allclose(grad_approx, hess_value, atol=1e-1)
 
         # Test Hessian imaginary-imaginary component
-        grad_approx = np.imag(jac1[test_ant_2_ind] - jac0[test_ant_2_ind]) / delta_gain
-        hess_value = hess_imag_imag[test_ant_1_ind, test_ant_2_ind]
+        grad_approx = (
+            np.imag(jac1[test_ant_2_ind, 0, 0] - jac0[test_ant_2_ind, 0, 0])
+            / delta_gain
+        )
+        hess_value = hess_imag_imag[test_ant_1_ind, test_ant_2_ind, 0, 0]
         if verbose:
             print(f"Gradient approximation value: {grad_approx}")
             print(f"Hessian value: {hess_value}")
@@ -728,10 +749,10 @@ class TestStringMethods(unittest.TestCase):
         gains_init0 = np.copy(gains_init[:, test_freq_ind])
         gains_init0[test_ant_1_ind] -= delta_gain / 2
         jac0 = cost_function_calculations.jacobian_skycal(
-            gains_init0,
-            caldata_obj.model_visibilities[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.data_visibilities[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.visibility_weights[:, :, test_freq_ind, test_pol_ind],
+            gains_init0[:, np.newaxis, np.newaxis],
+            caldata_obj.model_visibilities[:, :, [[test_freq_ind]], [[test_pol_ind]]],
+            caldata_obj.data_visibilities[:, :, [[test_freq_ind]], [[test_pol_ind]]],
+            caldata_obj.visibility_weights[:, :, [[test_freq_ind]], [[test_pol_ind]]],
             caldata_obj.ant1_inds,
             caldata_obj.ant2_inds,
             caldata_obj.lambda_val,
@@ -739,10 +760,10 @@ class TestStringMethods(unittest.TestCase):
         gains_init1 = np.copy(gains_init[:, test_freq_ind])
         gains_init1[test_ant_1_ind] += delta_gain / 2
         jac1 = cost_function_calculations.jacobian_skycal(
-            gains_init1,
-            caldata_obj.model_visibilities[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.data_visibilities[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.visibility_weights[:, :, test_freq_ind, test_pol_ind],
+            gains_init1[:, np.newaxis, np.newaxis],
+            caldata_obj.model_visibilities[:, :, [[test_freq_ind]], [[test_pol_ind]]],
+            caldata_obj.data_visibilities[:, :, [[test_freq_ind]], [[test_pol_ind]]],
+            caldata_obj.visibility_weights[:, :, [[test_freq_ind]], [[test_pol_ind]]],
             caldata_obj.ant1_inds,
             caldata_obj.ant2_inds,
             caldata_obj.lambda_val,
@@ -752,20 +773,23 @@ class TestStringMethods(unittest.TestCase):
             hess_real_imag,
             hess_imag_imag,
         ) = cost_function_calculations.hessian_skycal(
-            gains_init[:, test_freq_ind],
+            gains_init[:, [test_freq_ind], np.newaxis],
             caldata_obj.Nants,
             caldata_obj.Nbls,
-            caldata_obj.model_visibilities[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.data_visibilities[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.visibility_weights[:, :, test_freq_ind, test_pol_ind],
+            caldata_obj.model_visibilities[:, :, [[test_freq_ind]], [[test_pol_ind]]],
+            caldata_obj.data_visibilities[:, :, [[test_freq_ind]], [[test_pol_ind]]],
+            caldata_obj.visibility_weights[:, :, [[test_freq_ind]], [[test_pol_ind]]],
             caldata_obj.ant1_inds,
             caldata_obj.ant2_inds,
             caldata_obj.lambda_val,
         )
 
         # Test Hessian real-real component
-        grad_approx = np.real(jac1[test_ant_2_ind] - jac0[test_ant_2_ind]) / delta_gain
-        hess_value = hess_real_real[test_ant_1_ind, test_ant_2_ind]
+        grad_approx = (
+            np.real(jac1[test_ant_2_ind, 0, 0] - jac0[test_ant_2_ind, 0, 0])
+            / delta_gain
+        )
+        hess_value = hess_real_real[test_ant_1_ind, test_ant_2_ind, 0, 0]
         if verbose:
             print(f"Gradient approximation value: {grad_approx}")
             print(f"Hessian value: {hess_value}")
@@ -773,8 +797,11 @@ class TestStringMethods(unittest.TestCase):
         np.testing.assert_allclose(grad_approx, hess_value, rtol=1e-5)
 
         # Test Hessian real-imaginary component
-        grad_approx = np.imag(jac1[test_ant_2_ind] - jac0[test_ant_2_ind]) / delta_gain
-        hess_value = hess_real_imag[test_ant_1_ind, test_ant_2_ind]
+        grad_approx = (
+            np.imag(jac1[test_ant_2_ind, 0, 0] - jac0[test_ant_2_ind, 0, 0])
+            / delta_gain
+        )
+        hess_value = hess_real_imag[test_ant_1_ind, test_ant_2_ind, 0, 0]
         if verbose:
             print(f"Gradient approximation value: {grad_approx}")
             print(f"Hessian value: {hess_value}")
@@ -822,10 +849,10 @@ class TestStringMethods(unittest.TestCase):
         gains_init0 = np.copy(gains_init[:, test_freq_ind])
         gains_init0[test_ant_1_ind] -= 1j * delta_gain / 2
         jac0 = cost_function_calculations.jacobian_skycal(
-            gains_init0,
-            caldata_obj.model_visibilities[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.data_visibilities[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.visibility_weights[:, :, test_freq_ind, test_pol_ind],
+            gains_init0[:, np.newaxis, np.newaxis],
+            caldata_obj.model_visibilities[:, :, [[test_freq_ind]], [[test_pol_ind]]],
+            caldata_obj.data_visibilities[:, :, [[test_freq_ind]], [[test_pol_ind]]],
+            caldata_obj.visibility_weights[:, :, [[test_freq_ind]], [[test_pol_ind]]],
             caldata_obj.ant1_inds,
             caldata_obj.ant2_inds,
             caldata_obj.lambda_val,
@@ -833,10 +860,10 @@ class TestStringMethods(unittest.TestCase):
         gains_init1 = np.copy(gains_init[:, test_freq_ind])
         gains_init1[test_ant_1_ind] += 1j * delta_gain / 2
         jac1 = cost_function_calculations.jacobian_skycal(
-            gains_init1,
-            caldata_obj.model_visibilities[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.data_visibilities[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.visibility_weights[:, :, test_freq_ind, test_pol_ind],
+            gains_init1[:, np.newaxis, np.newaxis],
+            caldata_obj.model_visibilities[:, :, [[test_freq_ind]], [[test_pol_ind]]],
+            caldata_obj.data_visibilities[:, :, [[test_freq_ind]], [[test_pol_ind]]],
+            caldata_obj.visibility_weights[:, :, [[test_freq_ind]], [[test_pol_ind]]],
             caldata_obj.ant1_inds,
             caldata_obj.ant2_inds,
             caldata_obj.lambda_val,
@@ -846,20 +873,23 @@ class TestStringMethods(unittest.TestCase):
             hess_real_imag,
             hess_imag_imag,
         ) = cost_function_calculations.hessian_skycal(
-            gains_init[:, test_freq_ind],
+            gains_init[:, [test_freq_ind], np.newaxis],
             caldata_obj.Nants,
             caldata_obj.Nbls,
-            caldata_obj.model_visibilities[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.data_visibilities[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.visibility_weights[:, :, test_freq_ind, test_pol_ind],
+            caldata_obj.model_visibilities[:, :, [[test_freq_ind]], [[test_pol_ind]]],
+            caldata_obj.data_visibilities[:, :, [[test_freq_ind]], [[test_pol_ind]]],
+            caldata_obj.visibility_weights[:, :, [[test_freq_ind]], [[test_pol_ind]]],
             caldata_obj.ant1_inds,
             caldata_obj.ant2_inds,
             caldata_obj.lambda_val,
         )
 
         # Test Hessian imaginary-real component
-        grad_approx = np.real(jac1[test_ant_2_ind] - jac0[test_ant_2_ind]) / delta_gain
-        hess_value = hess_real_imag[test_ant_2_ind, test_ant_1_ind]
+        grad_approx = (
+            np.real(jac1[test_ant_2_ind, 0, 0] - jac0[test_ant_2_ind, 0, 0])
+            / delta_gain
+        )
+        hess_value = hess_real_imag[test_ant_2_ind, test_ant_1_ind, 0, 0]
         if verbose:
             print(f"Gradient approximation value: {grad_approx}")
             print(f"Hessian value: {hess_value}")
@@ -867,8 +897,11 @@ class TestStringMethods(unittest.TestCase):
         np.testing.assert_allclose(grad_approx, hess_value, rtol=1e-5)
 
         # Test Hessian imaginary-imaginary component
-        grad_approx = np.imag(jac1[test_ant_2_ind] - jac0[test_ant_2_ind]) / delta_gain
-        hess_value = hess_imag_imag[test_ant_1_ind, test_ant_2_ind]
+        grad_approx = (
+            np.imag(jac1[test_ant_2_ind, 0, 0] - jac0[test_ant_2_ind, 0, 0])
+            / delta_gain
+        )
+        hess_value = hess_imag_imag[test_ant_1_ind, test_ant_2_ind, 0, 0]
         if verbose:
             print(f"Gradient approximation value: {grad_approx}")
             print(f"Hessian value: {hess_value}")
@@ -914,10 +947,10 @@ class TestStringMethods(unittest.TestCase):
         gains_init0 = np.copy(gains_init[:, test_freq_ind])
         gains_init0[test_ant_1_ind] -= delta_gain / 2
         jac0 = cost_function_calculations.jacobian_skycal(
-            gains_init0,
-            caldata_obj.model_visibilities[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.data_visibilities[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.visibility_weights[:, :, test_freq_ind, test_pol_ind],
+            gains_init0[:, np.newaxis, np.newaxis],
+            caldata_obj.model_visibilities[:, :, [[test_freq_ind]], [[test_pol_ind]]],
+            caldata_obj.data_visibilities[:, :, [[test_freq_ind]], [[test_pol_ind]]],
+            caldata_obj.visibility_weights[:, :, [[test_freq_ind]], [[test_pol_ind]]],
             caldata_obj.ant1_inds,
             caldata_obj.ant2_inds,
             caldata_obj.lambda_val,
@@ -925,10 +958,10 @@ class TestStringMethods(unittest.TestCase):
         gains_init1 = np.copy(gains_init[:, test_freq_ind])
         gains_init1[test_ant_1_ind] += delta_gain / 2
         jac1 = cost_function_calculations.jacobian_skycal(
-            gains_init1,
-            caldata_obj.model_visibilities[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.data_visibilities[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.visibility_weights[:, :, test_freq_ind, test_pol_ind],
+            gains_init1[:, np.newaxis, np.newaxis],
+            caldata_obj.model_visibilities[:, :, [[test_freq_ind]], [[test_pol_ind]]],
+            caldata_obj.data_visibilities[:, :, [[test_freq_ind]], [[test_pol_ind]]],
+            caldata_obj.visibility_weights[:, :, [[test_freq_ind]], [[test_pol_ind]]],
             caldata_obj.ant1_inds,
             caldata_obj.ant2_inds,
             caldata_obj.lambda_val,
@@ -938,20 +971,23 @@ class TestStringMethods(unittest.TestCase):
             hess_real_imag,
             hess_imag_imag,
         ) = cost_function_calculations.hessian_skycal(
-            gains_init[:, test_freq_ind],
+            gains_init[:, [[test_freq_ind]]],
             caldata_obj.Nants,
             caldata_obj.Nbls,
-            caldata_obj.model_visibilities[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.data_visibilities[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.visibility_weights[:, :, test_freq_ind, test_pol_ind],
+            caldata_obj.model_visibilities[:, :, [[test_freq_ind]], [[test_pol_ind]]],
+            caldata_obj.data_visibilities[:, :, [[test_freq_ind]], [[test_pol_ind]]],
+            caldata_obj.visibility_weights[:, :, [[test_freq_ind]], [[test_pol_ind]]],
             caldata_obj.ant1_inds,
             caldata_obj.ant2_inds,
             caldata_obj.lambda_val,
         )
 
         # Test Hessian real-real component
-        grad_approx = np.real(jac1[test_ant_2_ind] - jac0[test_ant_2_ind]) / delta_gain
-        hess_value = hess_real_real[test_ant_1_ind, test_ant_2_ind]
+        grad_approx = (
+            np.real(jac1[test_ant_2_ind, 0, 0] - jac0[test_ant_2_ind, 0, 0])
+            / delta_gain
+        )
+        hess_value = hess_real_real[test_ant_1_ind, test_ant_2_ind, 0, 0]
         if verbose:
             print(f"Gradient approximation value: {grad_approx}")
             print(f"Hessian value: {hess_value}")
@@ -959,8 +995,11 @@ class TestStringMethods(unittest.TestCase):
         np.testing.assert_allclose(grad_approx, hess_value, rtol=1e-5)
 
         # Test Hessian real-imaginary component
-        grad_approx = np.imag(jac1[test_ant_2_ind] - jac0[test_ant_2_ind]) / delta_gain
-        hess_value = hess_real_imag[test_ant_1_ind, test_ant_2_ind]
+        grad_approx = (
+            np.imag(jac1[test_ant_2_ind, 0, 0] - jac0[test_ant_2_ind, 0, 0])
+            / delta_gain
+        )
+        hess_value = hess_real_imag[test_ant_1_ind, test_ant_2_ind, 0, 0]
         if verbose:
             print(f"Gradient approximation value: {grad_approx}")
             print(f"Hessian value: {hess_value}")
@@ -1007,10 +1046,10 @@ class TestStringMethods(unittest.TestCase):
         gains_init0 = np.copy(gains_init[:, test_freq_ind])
         gains_init0[test_ant_1_ind] -= 1j * delta_gain / 2
         jac0 = cost_function_calculations.jacobian_skycal(
-            gains_init0,
-            caldata_obj.model_visibilities[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.data_visibilities[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.visibility_weights[:, :, test_freq_ind, test_pol_ind],
+            gains_init0[:, np.newaxis, np.newaxis],
+            caldata_obj.model_visibilities[:, :, [[test_freq_ind]], [[test_pol_ind]]],
+            caldata_obj.data_visibilities[:, :, [[test_freq_ind]], [[test_pol_ind]]],
+            caldata_obj.visibility_weights[:, :, [[test_freq_ind]], [[test_pol_ind]]],
             caldata_obj.ant1_inds,
             caldata_obj.ant2_inds,
             caldata_obj.lambda_val,
@@ -1018,10 +1057,10 @@ class TestStringMethods(unittest.TestCase):
         gains_init1 = np.copy(gains_init[:, test_freq_ind])
         gains_init1[test_ant_1_ind] += 1j * delta_gain / 2
         jac1 = cost_function_calculations.jacobian_skycal(
-            gains_init1,
-            caldata_obj.model_visibilities[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.data_visibilities[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.visibility_weights[:, :, test_freq_ind, test_pol_ind],
+            gains_init1[:, np.newaxis, np.newaxis],
+            caldata_obj.model_visibilities[:, :, [[test_freq_ind]], [[test_pol_ind]]],
+            caldata_obj.data_visibilities[:, :, [[test_freq_ind]], [[test_pol_ind]]],
+            caldata_obj.visibility_weights[:, :, [[test_freq_ind]], [[test_pol_ind]]],
             caldata_obj.ant1_inds,
             caldata_obj.ant2_inds,
             caldata_obj.lambda_val,
@@ -1031,20 +1070,23 @@ class TestStringMethods(unittest.TestCase):
             hess_real_imag,
             hess_imag_imag,
         ) = cost_function_calculations.hessian_skycal(
-            gains_init[:, test_freq_ind],
+            gains_init[:, [test_freq_ind], np.newaxis],
             caldata_obj.Nants,
             caldata_obj.Nbls,
-            caldata_obj.model_visibilities[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.data_visibilities[:, :, test_freq_ind, test_pol_ind],
-            caldata_obj.visibility_weights[:, :, test_freq_ind, test_pol_ind],
+            caldata_obj.model_visibilities[:, :, [[test_freq_ind]], [[test_pol_ind]]],
+            caldata_obj.data_visibilities[:, :, [[test_freq_ind]], [[test_pol_ind]]],
+            caldata_obj.visibility_weights[:, :, [[test_freq_ind]], [[test_pol_ind]]],
             caldata_obj.ant1_inds,
             caldata_obj.ant2_inds,
             caldata_obj.lambda_val,
         )
 
         # Test Hessian imaginary-real component
-        grad_approx = np.real(jac1[test_ant_2_ind] - jac0[test_ant_2_ind]) / delta_gain
-        hess_value = hess_real_imag[test_ant_2_ind, test_ant_1_ind]
+        grad_approx = (
+            np.real(jac1[test_ant_2_ind, 0, 0] - jac0[test_ant_2_ind, 0, 0])
+            / delta_gain
+        )
+        hess_value = hess_real_imag[test_ant_2_ind, test_ant_1_ind, 0, 0]
         if verbose:
             print(f"Gradient approximation value: {grad_approx}")
             print(f"Hessian value: {hess_value}")
@@ -1053,8 +1095,11 @@ class TestStringMethods(unittest.TestCase):
         np.testing.assert_allclose(grad_approx, hess_value, atol=1e-1)
 
         # Test Hessian imaginary-imaginary component
-        grad_approx = np.imag(jac1[test_ant_2_ind] - jac0[test_ant_2_ind]) / delta_gain
-        hess_value = hess_imag_imag[test_ant_1_ind, test_ant_2_ind]
+        grad_approx = (
+            np.imag(jac1[test_ant_2_ind, 0, 0] - jac0[test_ant_2_ind, 0, 0])
+            / delta_gain
+        )
+        hess_value = hess_imag_imag[test_ant_1_ind, test_ant_2_ind, 0, 0]
         if verbose:
             print(f"Gradient approximation value: {grad_approx}")
             print(f"Hessian value: {hess_value}")
