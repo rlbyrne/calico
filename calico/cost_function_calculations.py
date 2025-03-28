@@ -18,13 +18,19 @@ def cost_skycal(
     Parameters
     ----------
     gains : array of complex
-        Shape (Nants,).
+        Shape (Nants, Nfreqs, N_feed_pols).
     model_visibilities :  array of complex
-        Shape (Ntimes, Nbls,).
+        Shape (Ntimes, Nbls, Nfreqs, N_feed_pols). Cross-polarization visibilites are not
+        supported; visibilities should include XX and YY only, ordered to correspond to the
+        gain polarization convention.
     data_visibilities : array of complex
-        Shape (Ntimes, Nbls,).
+        Shape (Ntimes, Nbls, Nfreqs, N_feed_pols). Cross-polarization visibilites are not
+        supported; visibilities should include XX and YY only, ordered to correspond to the
+        gain polarization convention.
     visibility_weights : array of float
-        Shape (Ntimes, Nbls,).
+        Shape (Ntimes, Nbls, Nfreqs, N_feed_pols). Cross-polarization visibilites are not
+        supported; visibilities should include XX and YY only, ordered to correspond to the
+        gain polarization convention.
     ant1_inds : array of int
         Shape (Nbls,).
     ant2_inds : array of int
@@ -38,7 +44,9 @@ def cost_skycal(
         Value of the cost function.
     """
 
-    gains_expanded = (gains[ant1_inds] * np.conj(gains[ant2_inds]))[np.newaxis, :]
+    gains_expanded = (gains[ant1_inds, :, :] * np.conj(gains[ant2_inds, :, :]))[
+        np.newaxis, :, :, :
+    ]
     res_vec = model_visibilities - gains_expanded * data_visibilities
     cost = np.sum(visibility_weights * np.abs(res_vec) ** 2)
 
@@ -64,13 +72,19 @@ def jacobian_skycal(
     Parameters
     ----------
     gains : array of complex
-        Shape (Nants,).
+        Shape (Nants, Nfreqs, N_feed_pols).
     model_visibilities :  array of complex
-        Shape (Ntimes, Nbls,).
+        Shape (Ntimes, Nbls, Nfreqs, N_feed_pols). Cross-polarization visibilites are not
+        supported; visibilities should include XX and YY only, ordered to correspond to the
+        gain polarization convention.
     data_visibilities : array of complex
-        Shape (Ntimes, Nbls,).
+        Shape (Ntimes, Nbls, Nfreqs, N_feed_pols). Cross-polarization visibilites are not
+        supported; visibilities should include XX and YY only, ordered to correspond to the
+        gain polarization convention.
     visibility_weights : array of float
-        Shape (Ntimes, Nbls,).
+        Shape (Ntimes, Nbls, Nfreqs, N_feed_pols). Cross-polarization visibilites are not
+        supported; visibilities should include XX and YY only, ordered to correspond to the
+        gain polarization convention.
     ant1_inds : array of int
         Shape (Nbls,).
     ant2_inds : array of int
@@ -81,16 +95,16 @@ def jacobian_skycal(
     Returns
     -------
     jac : array of complex
-        Jacobian of the chi-squared cost function, shape (Nants,). The real part
-        corresponds to derivatives with respect to the real part of the gains;
-        the imaginary part corresponds to derivatives with respect to the
+        Jacobian of the chi-squared cost function, shape (Nants, Nfreqs, N_feed_pols).
+        The real part corresponds to derivatives with respect to the real part of the
+        gains; the imaginary part corresponds to derivatives with respect to the
         imaginary part of the gains.
     """
 
     # Convert gains to visibility space
     # Add time axis
-    gains_expanded_1 = gains[np.newaxis, ant1_inds]
-    gains_expanded_2 = gains[np.newaxis, ant2_inds]
+    gains_expanded_1 = gains[np.newaxis, ant1_inds, :, :]
+    gains_expanded_2 = gains[np.newaxis, ant2_inds, :, :]
 
     res_vec = (
         gains_expanded_1 * np.conj(gains_expanded_2) * data_visibilities
@@ -191,17 +205,23 @@ def hessian_skycal(
     Parameters
     ----------
     gains : array of complex
-        Shape (Nants,).
+        Shape (Nants, Nfreqs, N_feed_pols).
     Nants : int
         Number of antennas.
     Nbls : int
         Number of baselines.
-    model_visibilities : array of complex
-        Shape (Ntimes, Nbls,).
+    model_visibilities :  array of complex
+        Shape (Ntimes, Nbls, Nfreqs, N_feed_pols). Cross-polarization visibilites are not
+        supported; visibilities should include XX and YY only, ordered to correspond to the
+        gain polarization convention.
     data_visibilities : array of complex
-        Shape (Ntimes, Nbls,).
+        Shape (Ntimes, Nbls, Nfreqs, N_feed_pols). Cross-polarization visibilites are not
+        supported; visibilities should include XX and YY only, ordered to correspond to the
+        gain polarization convention.
     visibility_weights : array of float
-        Shape (Ntimes, Nbls,).
+        Shape (Ntimes, Nbls, Nfreqs, N_feed_pols). Cross-polarization visibilites are not
+        supported; visibilities should include XX and YY only, ordered to correspond to the
+        gain polarization convention.
     ant1_inds : array of int
         Shape (Nbls,).
     ant2_inds : array of int
@@ -213,42 +233,44 @@ def hessian_skycal(
     -------
     hess_real_real : array of float
         Real-real derivative components of the Hessian of the cost function.
-        Shape (Nants, Nants,).
+        Shape (Nants, Nants, Nfreqs, N_feed_pols,).
     hess_real_imag : array of float
         Real-imaginary derivative components of the Hessian of the cost
         function. Note that the transpose of this array gives the imaginary-real
-        derivative components. Shape (Nants, Nants,).
+        derivative components. Shape (Nants, Nants, Nfreqs, N_feed_pols,).
     hess_imag_imag : array of float
         Imaginary-imaginary derivative components of the Hessian of the cost
-        function. Shape (Nants, Nants,).
+        function. Shape (Nants, Nants, Nfreqs, N_feed_pols,).
     """
 
-    gains_expanded_1 = gains[ant1_inds]
-    gains_expanded_2 = gains[ant2_inds]
+    gains_expanded_1 = gains[ant1_inds, :, :]
+    gains_expanded_2 = gains[ant2_inds, :, :]
     data_squared = np.sum(visibility_weights * np.abs(data_visibilities) ** 2.0, axis=0)
     data_times_model = np.sum(
         visibility_weights * model_visibilities * np.conj(data_visibilities), axis=0
     )
 
     # Calculate the antenna off-diagonal components
-    hess_components = np.zeros((Nbls, 4), dtype=float)
+    hess_components = np.zeros(
+        (Nbls, 4, np.shape(gains)[1], np.shape(gains)[2]), dtype=float
+    )
     # Real-real Hessian component:
-    hess_components[:, 0] = np.real(
+    hess_components[:, 0, :, :] = np.real(
         4 * np.real(gains_expanded_1) * np.real(gains_expanded_2) * data_squared
         - 2 * np.real(data_times_model)
     )
     # Real-imaginary Hessian component, term 1:
-    hess_components[:, 1] = np.real(
+    hess_components[:, 1, :, :] = np.real(
         4 * np.real(gains_expanded_1) * np.imag(gains_expanded_2) * data_squared
         + 2 * np.imag(data_times_model)
     )
     # Real-imaginary Hessian component, term 2:
-    hess_components[:, 2] = np.real(
+    hess_components[:, 2, :, :] = np.real(
         4 * np.imag(gains_expanded_1) * np.real(gains_expanded_2) * data_squared
         - 2 * np.imag(data_times_model)
     )
     # Imaginary-imaginary Hessian component:
-    hess_components[:, 3] = np.real(
+    hess_components[:, 3, :, :] = np.real(
         4 * np.imag(gains_expanded_1) * np.imag(gains_expanded_2) * data_squared
         - 2 * np.real(data_times_model)
     )
@@ -260,9 +282,15 @@ def hessian_skycal(
         Nants,
         Nbls,
     )
-    hess_real_real = hess_components[:, :, 0] + hess_components[:, :, 0].T
-    hess_real_imag = hess_components[:, :, 1] + hess_components[:, :, 2].T
-    hess_imag_imag = hess_components[:, :, 3] + hess_components[:, :, 3].T
+    hess_real_real = hess_components[:, :, 0, :, :] + np.transpose(
+        hess_components[:, :, 0, :, :], axes=(1, 0, 2, 3)
+    )
+    hess_real_imag = hess_components[:, :, 1, :, :] + np.transpose(
+        hess_components[:, :, 2, :, :], axes=(1, 0, 2, 3)
+    )
+    hess_imag_imag = hess_components[:, :, 3, :, :] + np.transpose(
+        hess_components[:, :, 3, :, :], axes=(1, 0, 2, 3)
+    )
 
     # Calculate the antenna diagonals
     hess_diag = 2 * (
@@ -277,34 +305,43 @@ def hessian_skycal(
             minlength=Nants,
         )
     )
-    np.fill_diagonal(hess_real_real, hess_diag)
-    np.fill_diagonal(hess_imag_imag, hess_diag)
-    np.fill_diagonal(hess_real_imag, 0.0)
+    hess_real_real[np.diag_indices(Nants)] = hess_diag
+    hess_imag_imag[np.diag_indices(Nants)] = hess_diag
+    hess_real_imag[np.diag_indices(Nants)] = 0.0
 
     if lambda_val > 0:  # Add regularization term
         gains_weighted = gains / np.abs(gains) ** 2.0
         arg_sum = np.sum(np.angle(gains))
         # Antenna off-diagonals
         hess_real_real += (
-            2 * lambda_val * np.outer(np.imag(gains_weighted), np.imag(gains_weighted))
+            2
+            * lambda_val
+            * np.imag(gains_weighted)[:, np.newaxis, :, :]
+            * np.imag(gains_weighted)[np.newaxis, :, :, :]
         )
         hess_real_imag -= (
-            2 * lambda_val * np.outer(np.imag(gains_weighted), np.real(gains_weighted))
+            2
+            * lambda_val
+            * np.imag(gains_weighted)[:, np.newaxis, :, :]
+            * np.real(gains_weighted)[np.newaxis, :, :, :]
         )
         hess_imag_imag += (
-            2 * lambda_val * np.outer(np.real(gains_weighted), np.real(gains_weighted))
+            2
+            * lambda_val
+            * np.real(gains_weighted)[:, np.newaxis, :, :]
+            * np.real(gains_weighted)[np.newaxis, :, :, :]
         )
         # Antenna diagonals
-        hess_real_real += np.diag(
+        hess_real_real[np.diag_indices(Nants)] += (
             4 * lambda_val * arg_sum * np.imag(gains_weighted) * np.real(gains_weighted)
         )
-        hess_real_imag -= np.diag(
+        hess_real_imag[np.diag_indices(Nants)] -= (
             2
             * lambda_val
             * arg_sum
             * (np.real(gains_weighted) ** 2.0 - np.imag(gains_weighted) ** 2.0)
         )
-        hess_imag_imag -= np.diag(
+        hess_imag_imag[np.diag_indices(Nants)] -= (
             4 * lambda_val * arg_sum * np.imag(gains_weighted) * np.real(gains_weighted)
         )
 

@@ -257,8 +257,6 @@ def sky_based_calibration_wrapper(
             sys.stdout.flush()
         caldata_obj.flag_antennas_from_per_ant_cost(
             flagging_threshold=antenna_flagging_threshold,
-            parallel=parallel,
-            pool=pool,
             verbose=verbose,
         )
 
