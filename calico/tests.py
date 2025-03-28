@@ -1279,7 +1279,6 @@ class TestStringMethods(unittest.TestCase):
 
         flag_ant_list = caldata_obj.flag_antennas_from_per_ant_cost(
             flagging_threshold=2.5,
-            parallel=False,
             return_antenna_flag_list=True,
         )
 
@@ -1302,7 +1301,7 @@ class TestStringMethods(unittest.TestCase):
             model.fast_concat(model_copy, "freq", inplace=True)
 
         caldata_obj = caldata.CalData()
-        caldata_obj.load_data(data, model, gain_init_stddev=0.1, lambda_val=100.0)
+        caldata_obj.load_data(data, model, gain_init_stddev=0.0, lambda_val=100.0)
 
         # Unflag all
         caldata_obj.visibility_weights = np.ones(
@@ -1315,14 +1314,12 @@ class TestStringMethods(unittest.TestCase):
             dtype=float,
         )
 
-        per_ant_cost = calibration_qa.calculate_per_antenna_cost(
-            caldata_obj, parallel=False
-        )
-        per_ant_cost_parallelized = calibration_qa.calculate_per_antenna_cost(
-            caldata_obj, parallel=True, max_processes=10
-        )
+        per_ant_cost = calibration_qa.calculate_per_antenna_cost(caldata_obj)
+        # per_ant_cost_parallelized = calibration_qa.calculate_per_antenna_cost(
+        #    caldata_obj, parallel=True, max_processes=10
+        # )
 
-        np.testing.assert_allclose(per_ant_cost, per_ant_cost_parallelized, atol=1e-8)
+        np.testing.assert_allclose(per_ant_cost, np.zeros_like(per_ant_cost), atol=1e-8)
 
     def test_crosspol_phase(self):
 
@@ -1692,6 +1689,152 @@ class TestStringMethods(unittest.TestCase):
                     rtol=1e-2,
                     atol=np.nanmean(np.abs(hess[:, use_ind])) / 1e4,
                 )
+
+    def test_cost_jac_hess_multiple_freqs(self):
+
+        model = pyuvdata.UVData()
+        model.read(f"{THIS_DIR}/data/test_model_1freq.uvfits")
+        data = pyuvdata.UVData()
+        data.read(f"{THIS_DIR}/data/test_data_1freq.uvfits")
+
+        model.select(polarizations=[-5, -6])
+        data.select(polarizations=[-5, -6])
+
+        use_Nfreqs = 3
+        data_copy = data.copy()
+        model_copy = model.copy()
+        for ind in range(1, use_Nfreqs):
+            data_copy.freq_array += 1e6 * ind
+            model_copy.freq_array += 1e6 * ind
+            data.fast_concat(data_copy, "freq", inplace=True)
+            model.fast_concat(model_copy, "freq", inplace=True)
+
+        vis_stddev = np.mean(np.abs(model.data_array)) / 100.0
+        model.data_array += np.random.normal(
+            1.0,
+            vis_stddev,
+            size=np.shape(model.data_array),
+        ) + 1j * np.random.normal(
+            1.0,
+            vis_stddev,
+            size=np.shape(model.data_array),
+        )
+        caldata_obj = caldata.CalData()
+        caldata_obj.load_data(data, model)
+
+        cost_1step = cost_function_calculations.cost_skycal(
+            caldata_obj.gains,
+            caldata_obj.model_visibilities,
+            caldata_obj.data_visibilities,
+            caldata_obj.visibility_weights,
+            caldata_obj.ant1_inds,
+            caldata_obj.ant2_inds,
+            caldata_obj.lambda_val,
+        )
+        jac_1step = cost_function_calculations.jacobian_skycal(
+            caldata_obj.gains,
+            caldata_obj.model_visibilities,
+            caldata_obj.data_visibilities,
+            caldata_obj.visibility_weights,
+            caldata_obj.ant1_inds,
+            caldata_obj.ant2_inds,
+            caldata_obj.lambda_val,
+        )
+        hess_real_real_1step, hess_real_imag_1step, hess_imag_imag_1step = (
+            cost_function_calculations.hessian_skycal(
+                caldata_obj.gains,
+                caldata_obj.Nants,
+                caldata_obj.Nbls,
+                caldata_obj.model_visibilities,
+                caldata_obj.data_visibilities,
+                caldata_obj.visibility_weights,
+                caldata_obj.ant1_inds,
+                caldata_obj.ant2_inds,
+                caldata_obj.lambda_val,
+            )
+        )
+
+        cost_iterated = 0
+        jac_iterated = np.zeros(
+            (caldata_obj.Nants, caldata_obj.Nfreqs, caldata_obj.N_feed_pols),
+            dtype=complex,
+        )
+        hess_real_real_iterated = np.zeros(
+            (
+                caldata_obj.Nants,
+                caldata_obj.Nants,
+                caldata_obj.Nfreqs,
+                caldata_obj.N_feed_pols,
+            ),
+            dtype=float,
+        )
+        hess_real_imag_iterated = np.zeros(
+            (
+                caldata_obj.Nants,
+                caldata_obj.Nants,
+                caldata_obj.Nfreqs,
+                caldata_obj.N_feed_pols,
+            ),
+            dtype=float,
+        )
+        hess_imag_imag_iterated = np.zeros(
+            (
+                caldata_obj.Nants,
+                caldata_obj.Nants,
+                caldata_obj.Nfreqs,
+                caldata_obj.N_feed_pols,
+            ),
+            dtype=float,
+        )
+        for pol in range(caldata_obj.N_feed_pols):
+            for freq in range(caldata_obj.Nfreqs):
+                cost_iterated += cost_function_calculations.cost_skycal(
+                    caldata_obj.gains[:, [[freq]], [[pol]]],
+                    caldata_obj.model_visibilities[:, :, [[freq]], [[pol]]],
+                    caldata_obj.data_visibilities[:, :, [[freq]], [[pol]]],
+                    caldata_obj.visibility_weights[:, :, [[freq]], [[pol]]],
+                    caldata_obj.ant1_inds,
+                    caldata_obj.ant2_inds,
+                    caldata_obj.lambda_val,
+                )
+                jac_iterated_new = cost_function_calculations.jacobian_skycal(
+                    caldata_obj.gains[:, [[freq]], [[pol]]],
+                    caldata_obj.model_visibilities[:, :, [[freq]], [[pol]]],
+                    caldata_obj.data_visibilities[:, :, [[freq]], [[pol]]],
+                    caldata_obj.visibility_weights[:, :, [[freq]], [[pol]]],
+                    caldata_obj.ant1_inds,
+                    caldata_obj.ant2_inds,
+                    caldata_obj.lambda_val,
+                )
+                jac_iterated[:, freq, pol] = jac_iterated_new[:, 0, 0]
+                hess_real_real_new, hess_real_imag_new, hess_imag_imag_new = (
+                    cost_function_calculations.hessian_skycal(
+                        caldata_obj.gains[:, [[freq]], [[pol]]],
+                        caldata_obj.Nants,
+                        caldata_obj.Nbls,
+                        caldata_obj.model_visibilities[:, :, [[freq]], [[pol]]],
+                        caldata_obj.data_visibilities[:, :, [[freq]], [[pol]]],
+                        caldata_obj.visibility_weights[:, :, [[freq]], [[pol]]],
+                        caldata_obj.ant1_inds,
+                        caldata_obj.ant2_inds,
+                        caldata_obj.lambda_val,
+                    )
+                )
+                hess_real_real_iterated[:, :, freq, pol] = hess_real_real_new[
+                    :, :, 0, 0
+                ]
+                hess_real_imag_iterated[:, :, freq, pol] = hess_real_imag_new[
+                    :, :, 0, 0
+                ]
+                hess_imag_imag_iterated[:, :, freq, pol] = hess_imag_imag_new[
+                    :, :, 0, 0
+                ]
+
+        np.testing.assert_allclose(cost_1step, cost_iterated)
+        np.testing.assert_allclose(jac_1step, jac_iterated)
+        np.testing.assert_allclose(hess_real_real_1step, hess_real_real_iterated)
+        np.testing.assert_allclose(hess_real_imag_1step, hess_real_imag_iterated)
+        np.testing.assert_allclose(hess_imag_imag_1step, hess_imag_imag_iterated)
 
     ################ ABSCAL TESTS ################
 
