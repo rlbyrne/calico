@@ -991,9 +991,6 @@ class CalData:
     def flag_antennas_from_per_ant_cost(
         self,
         flagging_threshold=2.5,
-        parallel=False,
-        max_processes=40,
-        pool=None,
         return_antenna_flag_list=False,
         verbose=True,
     ):
@@ -1009,16 +1006,6 @@ class CalData:
         flagging_threshold : float
             Flagging threshold. Per antenna cost values equal to flagging_threshold
             times the mean value will be flagged. Default 2.5.
-        parallel : bool
-            Set to True to parallelize cost evaluation with multiprocessing. Default
-            False if pool is None.
-        max_processes : int
-            Maximum number of multithreaded processes to use. Applicable only if
-            parallel is True and pool is None. If None, uses the multiprocessing
-            default. Default 40.
-        pool : multiprocessing.pool.Pool or None
-            Pool for multiprocessing. If None and parallel is True, a new pool will be
-            created for this process and terminated.
         return_antenna_flag_list : bool
             If True, returns list of flagged antennas.
         verbose : bool
@@ -1029,9 +1016,9 @@ class CalData:
             If return_antenna_flag_list is True, returns a list of flagged antenna names.
         """
 
-        per_ant_cost = calibration_qa.calculate_per_antenna_cost(
-            self, parallel=parallel, max_processes=max_processes, pool=pool
-        )
+        # TODO: Allow this function to be run in parallel
+
+        per_ant_cost = calibration_qa.calculate_per_antenna_cost(self)
 
         where_finite = np.isfinite(per_ant_cost)
         if np.sum(where_finite) > 0:
