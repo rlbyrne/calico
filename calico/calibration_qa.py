@@ -164,7 +164,13 @@ def plot_per_ant_cost(per_ant_cost, antenna_names, plot_output_dir, plot_prefix=
 
 
 def plot_gains(
-    cal, plot_output_dir, plot_prefix="", plot_reciprocal=False, ymin=0, ymax=None
+    cal,
+    plot_output_dir,
+    plot_prefix="",
+    plot_reciprocal=False,
+    ymin=0,
+    ymax=None,
+    zero_mean_phase=False,
 ):
     """
     Plot gain values. Creates two set of plots for each the gain amplitudes and
@@ -173,8 +179,10 @@ def plot_gains(
 
     Parameters
     ----------
-    cal : UVCal object or str
-        pyuvdata UVCal object or path to a calfits file.
+    cal : UVCal object, str, or list
+        pyuvdata UVCal object, path to a .calfits file, or path to a CASA .bcal file.
+        Alternatively, list containing UVCal objects or paths. If a list is provided,
+        the elements will be concatenated across frequency.
     plot_output_dir : str
         Path to the directory where the plots will be saved.
     plot_prefix : str
@@ -185,13 +193,51 @@ def plot_gains(
         Minimum of the gain amplitude y-axis. Default 0.
     ymax : float
         Maximum of the gain amplitude y-axis. Default is the maximum gain amplitude.
+    zero_mean_phase : bool
+        If True, forces the mean phase of the gains to be zero. This helps compare
+        calibration results generated with different reference antennas.
     """
 
     # Read data
-    if isinstance(cal, str):
+    if type(cal) is str:
         cal_obj = pyuvdata.UVCal()
-        cal_obj.read_calfits(cal)
+        if cal.endswith("calfits"):
+            cal_obj.read_calfits(cal)
+        elif cal.endswith("bcal"):
+            cal_obj.read_ms_cal(cal)
         cal = cal_obj
+    elif type(cal) is list:
+        for subband_ind, cal_subband in enumerate(cal):
+            if type(cal_subband) is str:
+                new_cal = pyuvdata.UVCal()
+                if cal_subband.endswith("calfits"):
+                    new_cal.read_calfits(cal_subband)
+                elif cal_subband.endswith("bcal"):
+                    new_cal.read_ms_cal(cal_subband)
+            else:
+                new_cal = cal_subband
+            if subband_ind == 0:
+                cal_concatenated = new_cal
+            else:
+                if (
+                    np.max(np.abs(cal_concatenated.time_array - new_cal.time_array))
+                    != 0
+                ):  # Force time arrays to be the same
+                    if (
+                        np.max(np.abs(cal_concatenated.time_array - new_cal.time_array))
+                        > 1e-5
+                    ):
+                        print("ERROR: time_array values are not close.")
+                    elif (
+                        np.max(np.abs(cal_concatenated.lst_array - new_cal.lst_array))
+                        > 1e-5
+                    ):
+                        print("ERROR: lst_array values are not close.")
+                    else:
+                        new_cal.time_array = cal_concatenated.time_array
+                        new_cal.lst_array = cal_concatenated.lst_array
+                cal_concatenated.fast_concat(new_cal, "freq", inplace=True)
+        cal = cal_concatenated
 
     # Parse strings
     use_plot_prefix = plot_prefix
@@ -235,6 +281,10 @@ def plot_gains(
 
     if cal.gain_array.ndim == 5:
         cal.gain_array = cal.gain_array[:, 0, :, :, :]
+
+    if zero_mean_phase:
+        mean_phase = np.nanmean(np.angle(cal.gain_array), axis=(0, 2))
+        cal.gain_array *= np.exp(-1j * mean_phase[np.newaxis, :, np.newaxis, :])
 
     if plot_reciprocal:
         cal.gain_array = 1.0 / cal.gain_array
