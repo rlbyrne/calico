@@ -163,19 +163,9 @@ def plot_per_ant_cost(per_ant_cost, antenna_names, plot_output_dir, plot_prefix=
     plt.close()
 
 
-def plot_gains(
-    cal,
-    plot_output_dir,
-    plot_prefix="",
-    plot_reciprocal=False,
-    ymin=0,
-    ymax=None,
-    zero_mean_phase=False,
-):
+def get_cal_data(cal, zero_mean_phase=False):
     """
-    Plot gain values. Creates two set of plots for each the gain amplitudes and
-    phases. Each figure contains 12 panel, each corresponding to one antenna.
-    The feed polarizations are overplotted in each panel.
+    Read and format calibration data.
 
     Parameters
     ----------
@@ -183,22 +173,14 @@ def plot_gains(
         pyuvdata UVCal object, path to a .calfits file, or path to a CASA .bcal file.
         Alternatively, list containing UVCal objects or paths. If a list is provided,
         the elements will be concatenated across frequency.
-    plot_output_dir : str
-        Path to the directory where the plots will be saved.
-    plot_prefix : str
-        Optional string to be appended to the start of the file names.
-    plot_reciprocal : bool
-        Plot 1/gains.
-    ymin : float
-        Minimum of the gain amplitude y-axis. Default 0.
-    ymax : float
-        Maximum of the gain amplitude y-axis. Default is the maximum gain amplitude.
     zero_mean_phase : bool
-        If True, forces the mean phase of the gains to be zero. This helps compare
-        calibration results generated with different reference antennas.
+        If True, forces the mean phase of the gains to be zero. Default False.
+
+    Returns
+    -------
+    cal : UVCal object
     """
 
-    # Read data
     if type(cal) is str:
         cal_obj = pyuvdata.UVCal()
         if cal.endswith("calfits"):
@@ -239,39 +221,141 @@ def plot_gains(
                 cal_concatenated.fast_concat(new_cal, "freq", inplace=True)
         cal = cal_concatenated
 
+    if zero_mean_phase:
+        mean_phase = np.nanmean(np.angle(cal.gain_array), axis=(0, 2))
+        cal.gain_array *= np.exp(-1j * mean_phase[np.newaxis, :, np.newaxis, :])
+
+    return cal
+
+
+def plot_gains(
+    cal,
+    cal2=None,
+    plot_output_dir=None,
+    cal_name="",
+    plot_reciprocal=False,
+    ymin=0,
+    ymax=None,
+    zero_mean_phase=False,
+):
+    """
+    Plot gain values. Creates two set of plots for each the gain amplitudes and
+    phases. Each figure contains 12 panel, each corresponding to one antenna.
+    The feed polarizations are overplotted in each panel.
+
+    Parameters
+    ----------
+    cal : UVCal object, str, or list
+        pyuvdata UVCal object, path to a .calfits file, or path to a CASA .bcal file.
+        Alternatively, list containing UVCal objects or paths. If a list is provided,
+        the elements will be concatenated across frequency.
+    cal2 : None or UVCal object, str, or list
+        Default None. Set to overplot two calibration solutions. pyuvdata UVCal object, 
+        path to a .calfits file, or path to a CASA .bcal file. Alternatively, list 
+        containing UVCal objects or paths. If a list is provided, the elements will 
+        be concatenated across frequency.
+    plot_output_dir : str
+        Path to the directory where the plots will be saved.
+    cal_name : str or list of str
+        Optional string to be appended to the start of the file names. If two calibration
+        solutions are overplotted, a list can be provided corresponding to each solution.
+    plot_reciprocal : bool
+        Plot 1/gains.
+    ymin : float
+        Minimum of the gain amplitude y-axis. Default 0.
+    ymax : float
+        Maximum of the gain amplitude y-axis. Default is the maximum gain amplitude.
+    zero_mean_phase : bool
+        If True, forces the mean phase of the gains to be zero. This helps compare
+        calibration results generated with different reference antennas. Default False.
+    """
+
+    cal = get_cal_data(cal, zero_mean_phase=zero_mean_phase)
+    if cal2 is not None:
+        cal2 = get_cal_data(cal2, zero_mean_phase=zero_mean_phase)
+
     # Parse strings
-    use_plot_prefix = plot_prefix
+    if isinstance(cal_name, list):
+        if len(cal_name) == 1:
+            plot_prefix = cal_name[0]
+        else:
+            plot_prefix = f"{cal_name[0]}_vs_{cal_name[1]}_"
+    else:
+        plot_prefix = cal_name
     if len(plot_prefix) > 0:
-        if not use_plot_prefix.endswith("_"):
-            use_plot_prefix = f"{use_plot_prefix}_"
+        if not plot_prefix.endswith("_"):
+            plot_prefix = f"{plot_prefix}_"
     use_plot_output_dir = plot_output_dir
-    if plot_output_dir.endswith("/"):
+    if plot_output_dir is None:
+        use_plot_output_dir = ""
+    if use_plot_output_dir.endswith("/"):
         use_plot_output_dir = use_plot_output_dir[:-1]
 
     # Plot style parameters
-    colors = ["tab:blue", "tab:orange"]
+    colors_x = ["blue", "lightskyblue"]
+    colors_y = ["orangered", "lightsalmon"]
     linewidth = 0.2
     markersize = 0.5
-    legend_elements = [
-        Line2D(
-            [0],
-            [0],
-            color=colors[0],
-            marker="o",
-            lw=linewidth,
-            markersize=markersize,
-            label="X",
-        ),
-        Line2D(
-            [0],
-            [0],
-            color=colors[1],
-            marker="o",
-            lw=linewidth,
-            markersize=markersize,
-            label="Y",
-        ),
-    ]
+    if cal2 is None:
+        legend_elements = [
+            Line2D(
+                [0],
+                [0],
+                color=colors_x[0],
+                marker="o",
+                lw=linewidth,
+                markersize=markersize,
+                label="X",
+            ),
+            Line2D(
+                [0],
+                [0],
+                color=colors_y[0],
+                marker="o",
+                lw=linewidth,
+                markersize=markersize,
+                label="Y",
+            ),
+        ]
+    else:
+        legend_elements = [
+            Line2D(
+                [0],
+                [0],
+                color=colors_x[0],
+                marker="o",
+                lw=linewidth,
+                markersize=markersize,
+                label=f"X, {cal_name[0]}",
+            ),
+            Line2D(
+                [0],
+                [0],
+                color=colors_y[0],
+                marker="o",
+                lw=linewidth,
+                markersize=markersize,
+                label=f"Y, {cal_name[0]}",
+            ),
+            Line2D(
+                [0],
+                [0],
+                color=colors_x[1],
+                marker="o",
+                lw=linewidth,
+                markersize=markersize,
+                label=f"X, {cal_name[1]}",
+            ),
+            Line2D(
+                [0],
+                [0],
+                color=colors_y[1],
+                marker="o",
+                lw=linewidth,
+                markersize=markersize,
+                label=f"Y, {cal_name[1]}",
+            ),
+        ]
 
     ant_names = np.sort(cal.antenna_names)
     freq_axis_mhz = cal.freq_array.flatten() / 1e6
@@ -281,10 +365,6 @@ def plot_gains(
 
     if cal.gain_array.ndim == 5:
         cal.gain_array = cal.gain_array[:, 0, :, :, :]
-
-    if zero_mean_phase:
-        mean_phase = np.nanmean(np.angle(cal.gain_array), axis=(0, 2))
-        cal.gain_array *= np.exp(-1j * mean_phase[np.newaxis, :, np.newaxis, :])
 
     if plot_reciprocal:
         cal.gain_array = 1.0 / cal.gain_array
@@ -304,7 +384,13 @@ def plot_gains(
                 nrows=3, ncols=4, figsize=(10, 8), sharex=True, sharey=True
             )
         ant_ind = np.where(np.array(cal.antenna_names) == name)[0][0]
-        if np.isnan(np.nanmean(cal.gain_array[ant_ind, :, 0, :])):  # All gains flagged
+        if cal2 is not None:
+            ant_ind2 = np.where(np.array(cal2.antenna_names) == name)[0][0]
+        all_flagged = np.isnan(np.nanmean(cal.gain_array[ant_ind, :, 0, :]))
+        if all_flagged and (cal2 is not None):
+            if not np.isnan(np.nanmean(cal2.gain_array[ant_ind2, :, 0, :])):
+                all_flagged = False
+        if all_flagged:  # All gains flagged
             ax.flat[subplot_ind].text(
                 np.mean(x_range),
                 np.mean(y_range),
@@ -314,15 +400,26 @@ def plot_gains(
                 color="red",
             )
         for pol_ind in range(cal.Njones):
+            use_colors = [colors_x, colors_y][pol_ind]
             ax.flat[subplot_ind].plot(
                 freq_axis_mhz,
                 np.abs(cal.gain_array[ant_ind, :, 0, pol_ind]),
                 "-o",
                 linewidth=linewidth,
                 markersize=markersize,
-                label=(["X", "Y"])[pol_ind],
-                color=colors[pol_ind],
+                color=use_colors[0],
             )
+        if cal2 is not None:
+            for pol_ind in range(cal2.Njones):
+                use_colors = [colors_x, colors_y][pol_ind]
+                ax.flat[subplot_ind].plot(
+                    freq_axis_mhz,
+                    np.abs(cal2.gain_array[ant_ind2, :, 0, pol_ind]),
+                    "-o",
+                    linewidth=linewidth,
+                    markersize=markersize,
+                    color=use_colors[1],
+                )
         ax.flat[subplot_ind].set_ylim(y_range)
         ax.flat[subplot_ind].set_xlim(x_range)
         ax.flat[subplot_ind].set_title(name)
@@ -338,7 +435,7 @@ def plot_gains(
             )
             plt.tight_layout()
             plt.savefig(
-                f"{use_plot_output_dir}/{use_plot_prefix}gain_amp_{plot_ind:02d}.png",
+                f"{use_plot_output_dir}/{plot_prefix}gain_amp_{plot_ind:02d}.png",
                 dpi=600,
             )
             plt.close()
@@ -354,7 +451,13 @@ def plot_gains(
                 nrows=3, ncols=4, figsize=(10, 8), sharex=True, sharey=True
             )
         ant_ind = np.where(np.array(cal.antenna_names) == name)[0][0]
-        if np.isnan(np.nanmean(cal.gain_array[ant_ind, :, 0, :])):  # All gains flagged
+        if cal2 is not None:
+            ant_ind2 = np.where(np.array(cal2.antenna_names) == name)[0][0]
+        all_flagged = np.isnan(np.nanmean(cal.gain_array[ant_ind, :, 0, :]))
+        if all_flagged and (cal2 is not None):
+            if not np.isnan(np.nanmean(cal2.gain_array[ant_ind2, :, 0, :])):
+                all_flagged = False
+        if all_flagged:  # All gains flagged
             ax.flat[subplot_ind].text(
                 np.mean(x_range),
                 0,
@@ -364,15 +467,26 @@ def plot_gains(
                 color="red",
             )
         for pol_ind in range(cal.Njones):
+            use_colors = [colors_x, colors_y][pol_ind]
             ax.flat[subplot_ind].plot(
                 freq_axis_mhz,
                 np.angle(cal.gain_array[ant_ind, :, 0, pol_ind]),
                 "-o",
                 linewidth=linewidth,
                 markersize=markersize,
-                label=(["X", "Y"])[pol_ind],
-                color=colors[pol_ind],
+                color=use_colors[0],
             )
+        if cal2 is not None:
+            for pol_ind in range(cal2.Njones):
+                use_colors = [colors_x, colors_y][pol_ind]
+                ax.flat[subplot_ind].plot(
+                    freq_axis_mhz,
+                    np.angle(cal2.gain_array[ant_ind2, :, 0, pol_ind]),
+                    "-o",
+                    linewidth=linewidth,
+                    markersize=markersize,
+                    color=use_colors[1],
+                )
         ax.flat[subplot_ind].set_ylim([-np.pi, np.pi])
         ax.flat[subplot_ind].set_xlim(x_range)
         ax.flat[subplot_ind].set_title(name)
@@ -388,7 +502,7 @@ def plot_gains(
             )
             plt.tight_layout()
             plt.savefig(
-                f"{use_plot_output_dir}/{use_plot_prefix}gain_phase_{plot_ind:02d}.png",
+                f"{use_plot_output_dir}/{plot_prefix}gain_phase_{plot_ind:02d}.png",
                 dpi=600,
             )
             plt.close()
