@@ -696,7 +696,7 @@ def run_skycal_optimization_per_pol_single_freq(
             if verbose:
                 print(result.message)
                 print(
-                    f"Optimization time: {(end_optimize - start_optimize)/60.} minutes"
+                    f"Freq. {freq_ind} Pol. {feed_pol_ind}, optimization time: {(end_optimize - start_optimize)/60.} minutes"
                 )
             sys.stdout.flush()
             gains_fit_single_pol = np.reshape(result.x, (len(ant_inds), 2))
