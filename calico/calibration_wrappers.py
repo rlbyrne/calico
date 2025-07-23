@@ -11,8 +11,6 @@ def sky_based_calibration_wrapper(
     model,
     data_use_column="DATA",
     model_use_column="MODEL_DATA",
-    conjugate_data=False,
-    conjugate_model=False,
     gain_init_calfile=None,
     gains_multiply_model=False,
     gain_init_to_vis_ratio=True,
@@ -57,12 +55,6 @@ def sky_based_calibration_wrapper(
     model_use_column : str
         Column in an ms file to use for the model visibilities. Used only if
         data_file_path points to an ms file. Default "MODEL_DATA".
-    conjugate_data : bool
-        Option to conjugate data visibilities, needed sometimes when the data
-        and model convention does not match. Default False.
-    conjugate_model : bool
-        Option to conjugate model visibilities, needed sometimes when the data
-        and model convention does not match. Default False.
     gain_init_calfile : str or None
         Default None. If not None, provides a path to a pyuvdata-formatted
         calfits file containing gains values for calibration initialization.
@@ -183,16 +175,6 @@ def sky_based_calibration_wrapper(
         else:
             model.read(model_file_path)
         print_data_read_time = True
-
-    if conjugate_data:
-        print("Conjugating data visibilities.")
-        sys.stdout.flush()
-        data.data_array = np.conj(data.data_array)
-
-    if conjugate_model:
-        print("Conjugating model visibilities.")
-        sys.stdout.flush()
-        model.data_array = np.conj(model.data_array)
 
     # Ensure data and model are phased the same
     data.phase_to_time(np.mean(data.time_array))
@@ -677,23 +659,22 @@ def apply_abscal(
 
     # Get antenna locations
     # Create gains expand matrices
-    gains_exp_mat_1 = np.zeros((uvdata.Nblts, len(uvdata.antenna_numbers)), dtype=int)
-    gains_exp_mat_2 = np.zeros((uvdata.Nblts, len(uvdata.antenna_numbers)), dtype=int)
+    gains_exp_mat_1 = np.zeros(
+        (uvdata.Nblts, len(uvdata.telescope.antenna_numbers)), dtype=int
+    )
+    gains_exp_mat_2 = np.zeros(
+        (uvdata.Nblts, len(uvdata.telescope.antenna_numbers)), dtype=int
+    )
     for baseline in range(uvdata.Nblts):
         gains_exp_mat_1[
             baseline,
-            np.where(uvdata.antenna_numbers == uvdata.ant_1_array[baseline]),
+            np.where(uvdata.telescope.antenna_numbers == uvdata.ant_1_array[baseline]),
         ] = 1
         gains_exp_mat_2[
             baseline,
-            np.where(uvdata.antenna_numbers == uvdata.ant_2_array[baseline]),
+            np.where(uvdata.telescope.antenna_numbers == uvdata.ant_2_array[baseline]),
         ] = 1
-    antpos_ecef = (
-        uvdata.antenna_positions + uvdata.telescope_location
-    )  # Get antennas positions in ECEF
-    antpos_enu = pyuvdata.utils.ENU_from_ECEF(
-        antpos_ecef, center_loc=uvdata.telescope.location
-    )  # Convert to topocentric (East, North, Up or ENU) coords.
+    antpos_enu = uvdata.telescope.get_enu_antpos()
     antpos_en = antpos_enu[:, :2]
     ant1_positions = np.matmul(gains_exp_mat_1, antpos_en)
     ant2_positions = np.matmul(gains_exp_mat_2, antpos_en)

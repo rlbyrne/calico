@@ -250,9 +250,9 @@ def plot_gains(
         Alternatively, list containing UVCal objects or paths. If a list is provided,
         the elements will be concatenated across frequency.
     cal2 : None or UVCal object, str, or list
-        Default None. Set to overplot two calibration solutions. pyuvdata UVCal object, 
-        path to a .calfits file, or path to a CASA .bcal file. Alternatively, list 
-        containing UVCal objects or paths. If a list is provided, the elements will 
+        Default None. Set to overplot two calibration solutions. pyuvdata UVCal object,
+        path to a .calfits file, or path to a CASA .bcal file. Alternatively, list
+        containing UVCal objects or paths. If a list is provided, the elements will
         be concatenated across frequency.
     plot_output_dir : str
         Path to the directory where the plots will be saved.

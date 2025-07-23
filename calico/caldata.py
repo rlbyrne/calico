@@ -78,7 +78,7 @@ class CalData:
         Length of integration in seconds.
     time : float
         Time of observation in Julian Date.
-    telescope : pyuvdata.Telescope 
+    telescope : pyuvdata.Telescope
         Object containing the telescope metadata.
     lst : str
         Local sidereal time (LST), in radians.
