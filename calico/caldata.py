@@ -78,10 +78,10 @@ class CalData:
         Length of integration in seconds.
     time : float
         Time of observation in Julian Date.
-    telescope_name : str
+    telescope : pyuvdata.Telescope 
+        Object containing the telescope metadata.
     lst : str
         Local sidereal time (LST), in radians.
-    telescope_location : array of float
     lambda_val : float
         Weight of the phase regularization term; must be positive. Default 100.
     """
@@ -113,9 +113,8 @@ class CalData:
         self.freq_array = None
         self.integration_time = None
         self.time = None
-        self.telescope_name = None
+        self.telescope = None
         self.lst = None
-        self.telescope_location = None
         self.lambda_val = None
 
     def set_gains_from_calfile(self, calfile):
@@ -415,9 +414,8 @@ class CalData:
         self.freq_array = np.reshape(metadata_reference.freq_array, (self.Nfreqs))
         self.integration_time = np.mean(metadata_reference.integration_time)
         self.time = np.mean(metadata_reference.time_array)
-        self.telescope_name = metadata_reference.telescope_name
+        self.telescope = metadata_reference.telescope
         self.lst = np.mean(metadata_reference.lst_array)
-        self.telescope_location = metadata_reference.telescope_location
 
         if (min_cal_baseline_lambda is not None) or (
             max_cal_baseline_lambda is not None
@@ -458,16 +456,21 @@ class CalData:
         # Get ordered list of antenna names
         self.antenna_names = np.array(
             [
-                np.array(metadata_reference.antenna_names)[
-                    np.where(metadata_reference.antenna_numbers == ant_num)[0][0]
+                np.array(metadata_reference.telescope.antenna_names)[
+                    np.where(metadata_reference.telescope.antenna_numbers == ant_num)[
+                        0
+                    ][0]
                 ]
                 for ant_num in self.antenna_numbers
             ]
         )
         self.antenna_positions = np.array(
             [
-                np.array(metadata_reference.antenna_positions)[
-                    np.where(metadata_reference.antenna_numbers == ant_num)[0][0], :
+                np.array(metadata_reference.telescope.antenna_positions)[
+                    np.where(metadata_reference.telescope.antenna_numbers == ant_num)[
+                        0
+                    ][0],
+                    :,
                 ]
                 for ant_num in self.antenna_numbers
             ]
@@ -665,9 +668,8 @@ class CalData:
             caldata_per_freq.freq_array = self.freq_array[[freq_ind]]
             caldata_per_freq.integration_time = self.integration_time
             caldata_per_freq.time = self.time
-            caldata_per_freq.telescope_name = self.telescope_name
+            caldata_per_freq.telescope = self.telescope
             caldata_per_freq.lst = self.lst
-            caldata_per_freq.telescope_location = self.telescope_location
             caldata_per_freq.lambda_val = self.lambda_val
             if self.dwcal_inv_covariance is not None:
                 print(
@@ -728,9 +730,8 @@ class CalData:
             caldata_per_pol.freq_array = self.freq_array
             caldata_per_pol.integration_time = self.integration_time
             caldata_per_pol.time = self.time
-            caldata_per_pol.telescope_name = self.telescope_name
+            caldata_per_pol.telescope = self.telescope
             caldata_per_pol.lst = self.lst
-            caldata_per_pol.telescope_location = self.telescope_location
             caldata_per_pol.lambda_val = self.lambda_val
             if self.dwcal_inv_covariance is not None:
                 if np.shape(self.dwcal_inv_covariance)[-1] == 1:
@@ -759,6 +760,7 @@ class CalData:
         """
 
         uvcal = pyuvdata.UVCal()
+        uvcal.Nants = self.Nants
         uvcal.Nants_data = self.Nants
         uvcal.Nants_telescope = self.Nants
         uvcal.Nfreqs = self.Nfreqs
@@ -781,9 +783,8 @@ class CalData:
         uvcal.integration_time = np.array([self.integration_time])
         uvcal.jones_array = self.feed_polarization_array
         uvcal.spw_array = np.array([0])
-        uvcal.telescope_name = self.telescope_name
+        uvcal.telescope = self.telescope
         uvcal.lst_array = np.array([self.lst])
-        uvcal.telescope_location = self.telescope_location
         uvcal.time_array = np.array([self.time])
         uvcal.x_orientation = "east"
         uvcal.gain_array = self.gains[:, :, np.newaxis, :]
