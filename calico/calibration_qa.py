@@ -357,7 +357,7 @@ def plot_gains(
             ),
         ]
 
-    ant_names = np.sort(cal.antenna_names)
+    ant_names = np.sort(cal.telescope.antenna_names)
     freq_axis_mhz = cal.freq_array.flatten() / 1e6
 
     # Apply flags
@@ -383,9 +383,9 @@ def plot_gains(
             fig, ax = plt.subplots(
                 nrows=3, ncols=4, figsize=(10, 8), sharex=True, sharey=True
             )
-        ant_ind = np.where(np.array(cal.antenna_names) == name)[0][0]
+        ant_ind = np.where(np.array(cal.telescope.antenna_names) == name)[0][0]
         if cal2 is not None:
-            ant_ind2 = np.where(np.array(cal2.antenna_names) == name)[0][0]
+            ant_ind2 = np.where(np.array(cal2.telescope.antenna_names) == name)[0][0]
         all_flagged = np.isnan(np.nanmean(cal.gain_array[ant_ind, :, 0, :]))
         if all_flagged and (cal2 is not None):
             if not np.isnan(np.nanmean(cal2.gain_array[ant_ind2, :, 0, :])):
@@ -450,9 +450,9 @@ def plot_gains(
             fig, ax = plt.subplots(
                 nrows=3, ncols=4, figsize=(10, 8), sharex=True, sharey=True
             )
-        ant_ind = np.where(np.array(cal.antenna_names) == name)[0][0]
+        ant_ind = np.where(np.array(cal.telescope.antenna_names) == name)[0][0]
         if cal2 is not None:
-            ant_ind2 = np.where(np.array(cal2.antenna_names) == name)[0][0]
+            ant_ind2 = np.where(np.array(cal2.telescope.antenna_names) == name)[0][0]
         all_flagged = np.isnan(np.nanmean(cal.gain_array[ant_ind, :, 0, :]))
         if all_flagged and (cal2 is not None):
             if not np.isnan(np.nanmean(cal2.gain_array[ant_ind2, :, 0, :])):
