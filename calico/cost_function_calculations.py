@@ -119,7 +119,7 @@ def jacobian_skycal(
     )
     term1 = utils.bincount_multidim(
         ant1_inds,
-        weights=term1,
+        term1,
         minlength=np.max(np.array([np.max(ant1_inds), np.max(ant2_inds)])) + 1,
     )
     term2 = np.sum(
@@ -128,7 +128,7 @@ def jacobian_skycal(
     )
     term2 = utils.bincount_multidim(
         ant2_inds,
-        weights=term2,
+        term2,
         minlength=np.max(np.array([np.max(ant1_inds), np.max(ant2_inds)])) + 1,
     )
 
@@ -301,12 +301,12 @@ def hessian_skycal(
     hess_diag = 2 * (
         utils.bincount_multidim(
             ant1_inds,
-            weights=np.abs(gains_expanded_2) ** 2.0 * data_squared,
+            np.abs(gains_expanded_2) ** 2.0 * data_squared,
             minlength=Nants,
         )
         + utils.bincount_multidim(
             ant2_inds,
-            weights=np.abs(gains_expanded_1) ** 2.0 * data_squared,
+            np.abs(gains_expanded_1) ** 2.0 * data_squared,
             minlength=Nants,
         )
     )
