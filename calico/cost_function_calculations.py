@@ -1,8 +1,10 @@
 import numpy as np
 import sys
 from calico import utils
+from numba import njit
 
 
+@njit
 def cost_skycal(
     gains,
     model_visibilities,
@@ -57,6 +59,7 @@ def cost_skycal(
     return cost
 
 
+@njit
 def jacobian_skycal(
     gains,
     model_visibilities,
@@ -117,7 +120,7 @@ def jacobian_skycal(
     term1 = utils.bincount_multidim(
         ant1_inds,
         weights=term1,
-        minlength=np.max([np.max(ant1_inds), np.max(ant2_inds)]) + 1,
+        minlength=np.max(np.array([np.max(ant1_inds), np.max(ant2_inds)])) + 1,
     )
     term2 = np.sum(
         visibility_weights * gains_expanded_1 * data_visibilities * np.conj(res_vec),
@@ -126,7 +129,7 @@ def jacobian_skycal(
     term2 = utils.bincount_multidim(
         ant2_inds,
         weights=term2,
-        minlength=np.max([np.max(ant1_inds), np.max(ant2_inds)]) + 1,
+        minlength=np.max(np.array([np.max(ant1_inds), np.max(ant2_inds)])) + 1,
     )
 
     jac = 2 * (term1 + term2)
@@ -140,6 +143,7 @@ def jacobian_skycal(
     return jac
 
 
+@njit
 def reformat_baselines_to_antenna_matrix(
     bl_array,
     ant1_inds,
@@ -188,6 +192,7 @@ def reformat_baselines_to_antenna_matrix(
     return antenna_matrix
 
 
+@njit
 def hessian_skycal(
     gains,
     Nants,
@@ -348,6 +353,7 @@ def hessian_skycal(
     return hess_real_real, hess_real_imag, hess_imag_imag
 
 
+@njit
 def set_crosspol_phase(
     gains,
     crosspol_model_visibilities,
@@ -411,6 +417,7 @@ def set_crosspol_phase(
     return crosspol_phase
 
 
+@njit
 def set_crosspol_phase_pseudoV(
     gains,
     crosspol_data_visibilities,
@@ -472,6 +479,7 @@ def set_crosspol_phase_pseudoV(
     return crosspol_phase
 
 
+@njit
 def cost_function_abs_cal(
     amp,
     phase_grad,
@@ -512,6 +520,7 @@ def cost_function_abs_cal(
     return cost
 
 
+@njit
 def jacobian_abs_cal(
     amp,
     phase_grad,
@@ -575,6 +584,7 @@ def jacobian_abs_cal(
     return amp_jac, phase_jac
 
 
+@njit
 def hess_abs_cal(
     amp,
     phase_grad,
@@ -681,6 +691,7 @@ def hess_abs_cal(
     )
 
 
+@njit
 def cost_function_dw_abscal(
     amp,
     phase_grad,
@@ -737,6 +748,7 @@ def cost_function_dw_abscal(
     return cost
 
 
+@njit
 def cost_function_dw_abscal_toeplitz(
     amp,
     phase_grad,
@@ -793,6 +805,7 @@ def cost_function_dw_abscal_toeplitz(
     return cost
 
 
+@njit
 def jacobian_dw_abscal(
     amp,
     phase_grad,
@@ -873,6 +886,7 @@ def jacobian_dw_abscal(
     return amp_jac, phase_jac
 
 
+@njit
 def hess_dw_abscal(
     amp,
     phase_grad,
