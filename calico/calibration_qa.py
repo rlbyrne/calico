@@ -5,9 +5,10 @@ import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
 import multiprocessing
 import sys
+from numpy.typing import NDArray
 
 
-def calculate_per_antenna_cost(caldata_obj):
+def calculate_per_antenna_cost(caldata_obj) -> NDArray[np.floating]:
     """
     Calculate the contribution of each antenna to the cost function. The cost
     function used is the standard "sky-based" per frequency, per polarization
@@ -79,7 +80,12 @@ def calculate_per_antenna_cost(caldata_obj):
     return per_ant_cost_normalized
 
 
-def plot_per_ant_cost(per_ant_cost, antenna_names, plot_output_dir, plot_prefix=""):
+def plot_per_ant_cost(
+    per_ant_cost: NDArray[np.floating],
+    antenna_names: NDArray[str],
+    plot_output_dir: str,
+    plot_prefix: str = "",
+) -> None:
     """
     Plot the per-antenna cost.
 
@@ -163,7 +169,7 @@ def plot_per_ant_cost(per_ant_cost, antenna_names, plot_output_dir, plot_prefix=
     plt.close()
 
 
-def get_cal_data(cal, zero_mean_phase=False):
+def get_cal_data(cal: pyuvdata.UVCal, zero_mean_phase: bool = False) -> pyuvdata.UVCal:
     """
     Read and format calibration data.
 
@@ -229,15 +235,15 @@ def get_cal_data(cal, zero_mean_phase=False):
 
 
 def plot_gains(
-    cal,
-    cal2=None,
-    plot_output_dir=None,
-    cal_name="",
-    plot_reciprocal=False,
-    ymin=0,
-    ymax=None,
-    zero_mean_phase=False,
-):
+    cal: pyuvdata.UVCal,
+    cal2: pyuvdata.UVCal = None,
+    plot_output_dir: str | None = None,
+    cal_name: str = "",
+    plot_reciprocal: bool = False,
+    ymin: float | None = 0,
+    ymax: float | None = None,
+    zero_mean_phase: bool = False,
+) -> None:
     """
     Plot gain values. Creates two set of plots for each the gain amplitudes and
     phases. Each figure contains 12 panel, each corresponding to one antenna.

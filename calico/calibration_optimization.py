@@ -4,15 +4,16 @@ import scipy
 import scipy.optimize
 import time
 from calico import cost_function_calculations
+from numpy.typing import NDArray
 
 
 def cost_skycal_wrapper(
-    gains_flattened,
+    gains_flattened: NDArray[np.floating],
     caldata_obj,
-    ant_inds,
-    freq_ind,
-    vis_pol_ind,
-):
+    ant_inds: NDArray[int],
+    freq_ind: int,
+    vis_pol_ind: int,
+) -> float:
     """
     Wrapper for function cost_skycal. Reformats the input gains to be compatible
     with the scipy.optimize.minimize function.
@@ -83,12 +84,12 @@ def cost_skycal_wrapper(
 
 
 def jacobian_skycal_wrapper(
-    gains_flattened,
+    gains_flattened: NDArray[np.floating],
     caldata_obj,
-    ant_inds,
-    freq_ind,
-    vis_pol_ind,
-):
+    ant_inds: NDArray[int],
+    freq_ind: int,
+    vis_pol_ind: int,
+) -> NDArray[np.floating]:
     """
     Wrapper for function jacobian_skycal. Reformats the input gains and
     output Jacobian to be compatible with the scipy.optimize.minimize function.
@@ -165,12 +166,12 @@ def jacobian_skycal_wrapper(
 
 
 def hessian_skycal_wrapper(
-    gains_flattened,
+    gains_flattened: NDArray[np.floating],
     caldata_obj,
-    ant_inds,
-    freq_ind,
-    vis_pol_ind,
-):
+    ant_inds: NDArray[int],
+    freq_ind: int,
+    vis_pol_ind: int,
+) -> NDArray[np.floating]:
     """
     Wrapper for function hessian_skycal. Reformats the input gains and
     output Hessian to be compatible with the scipy.optimize.minimize function.
@@ -270,7 +271,7 @@ def hessian_skycal_wrapper(
     return hess_flattened
 
 
-def cost_abscal_wrapper(abscal_parameters, caldata_obj):
+def cost_abscal_wrapper(abscal_parameters: NDArray[np.floating], caldata_obj) -> float:
     """
     Wrapper for function cost_function_abs_cal.
 
@@ -307,7 +308,9 @@ def cost_abscal_wrapper(abscal_parameters, caldata_obj):
     return cost
 
 
-def jacobian_abscal_wrapper(abscal_parameters, caldata_obj):
+def jacobian_abscal_wrapper(
+    abscal_parameters: NDArray[np.floating], caldata_obj
+) -> NDArray[np.floating]:
     """
     Wrapper for function jacobian_abs_cal.
 
@@ -347,7 +350,9 @@ def jacobian_abscal_wrapper(abscal_parameters, caldata_obj):
     return jac
 
 
-def hessian_abscal_wrapper(abscal_parameters, caldata_obj):
+def hessian_abscal_wrapper(
+    abscal_parameters: NDArray[np.floating], caldata_obj
+) -> NDArray[np.floating]:
     """
     Wrapper for function hess_abs_cal.
 
@@ -406,8 +411,10 @@ def hessian_abscal_wrapper(abscal_parameters, caldata_obj):
 
 
 def cost_dw_abscal_wrapper(
-    abscal_parameters_flattened, unflagged_freq_inds, caldata_obj
-):
+    abscal_parameters_flattened: NDArray[np.floating],
+    unflagged_freq_inds: NDArray[int],
+    caldata_obj,
+) -> float:
     """
     Wrapper for function cost_function_dw_abscal.
 
@@ -459,8 +466,10 @@ def cost_dw_abscal_wrapper(
 
 
 def jacobian_dw_abscal_wrapper(
-    abscal_parameters_flattened, unflagged_freq_inds, caldata_obj
-):
+    abscal_parameters_flattened: NDArray[np.floating],
+    unflagged_freq_inds: NDArray[int],
+    caldata_obj,
+) -> NDArray[np.floating]:
     """
     Wrapper for function jacobian_dw_abscal.
 
@@ -517,8 +526,10 @@ def jacobian_dw_abscal_wrapper(
 
 
 def hessian_dw_abscal_wrapper(
-    abscal_parameters_flattened, unflagged_freq_inds, caldata_obj
-):
+    abscal_parameters_flattened: NDArray[np.floating],
+    unflagged_freq_inds: NDArray[int],
+    caldata_obj,
+) -> NDArray[np.floating]:
     """
     Wrapper for function hess_dw_abscal.
 
@@ -602,13 +613,13 @@ def hessian_dw_abscal_wrapper(
 
 def run_skycal_optimization_per_pol_single_freq(
     caldata_obj,
-    xtol,
-    maxiter,
-    freq_ind=0,
-    verbose=True,
-    get_crosspol_phase=True,
-    crosspol_phase_strategy="crosspol model",
-):
+    xtol: float,
+    maxiter: int,
+    freq_ind: int = 0,
+    verbose: bool = True,
+    get_crosspol_phase: bool = True,
+    crosspol_phase_strategy: str = "crosspol model",
+) -> NDArray[np.complexfloating]:
     """
     Run calibration per polarization. Here the XX and YY visibilities are
     calibrated individually. If get_crosspol_phase is set, the cross-
@@ -770,10 +781,10 @@ def run_skycal_optimization_per_pol_single_freq(
 
 def run_abscal_optimization_single_freq(
     caldata_obj,
-    xtol,
-    maxiter,
-    verbose=True,
-):
+    xtol: float,
+    maxiter: int,
+    verbose: bool = True,
+) -> NDArray[np.complexfloating]:
     """
     Run absolute calibration ("abscal").
 
@@ -819,10 +830,10 @@ def run_abscal_optimization_single_freq(
 
 def run_dw_abscal_optimization(
     caldata_obj,
-    xtol,
-    maxiter,
-    verbose=True,
-):
+    xtol: float,
+    maxiter: int,
+    verbose: bool = True,
+) -> NDArray[np.complexfloating]:
     """
     Run absolute calibration with delay weighting.
 
