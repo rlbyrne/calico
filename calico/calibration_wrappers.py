@@ -1,38 +1,40 @@
 import numpy as np
+from numpy.typing import NDArray
 import sys
 import time
 import pyuvdata
 import multiprocessing
 from calico import caldata
+from pyuvdata import UVData, UVCal
 
 
 def sky_based_calibration_wrapper(
-    data,
-    model,
-    data_use_column="DATA",
-    model_use_column="MODEL_DATA",
-    gain_init_calfile=None,
-    gains_multiply_model=False,
-    gain_init_to_vis_ratio=True,
-    gain_init_stddev=0.0,
-    N_feed_pols=None,
-    feed_polarization_array=None,
-    min_cal_baseline_m=None,
-    max_cal_baseline_m=None,
-    min_cal_baseline_lambda=None,
-    max_cal_baseline_lambda=None,
-    lambda_val=100,
-    xtol=1e-5,
-    maxiter=200,
-    get_crosspol_phase=True,
-    crosspol_phase_strategy="crosspol model",
-    antenna_flagging_iterations=1,
-    antenna_flagging_threshold=2.5,
-    parallel=True,
-    max_processes=40,
-    verbose=False,
-    log_file_path=None,
-):
+    data: str | UVData,
+    model: str | UVData,
+    data_use_column: str = "DATA",
+    model_use_column: str = "MODEL_DATA",
+    gain_init_calfile: str | None = None,
+    gains_multiply_model: bool = False,
+    gain_init_to_vis_ratio: bool = True,
+    gain_init_stddev: float = 0.0,
+    N_feed_pols: int | None = None,
+    feed_polarization_array: NDArray[int] | None = None,
+    min_cal_baseline_m: float | None = None,
+    max_cal_baseline_m: float | None = None,
+    min_cal_baseline_lambda: float | None = None,
+    max_cal_baseline_lambda: float | None = None,
+    lambda_val: float = 0.0,
+    xtol: float = 1e-5,
+    maxiter: int = 200,
+    get_crosspol_phase: bool = True,
+    crosspol_phase_strategy: str = "crosspol model",
+    antenna_flagging_iterations: int = 1,
+    antenna_flagging_threshold: float = 2.5,
+    parallel: bool = True,
+    max_processes: int | None = 40,
+    verbose: bool = False,
+    log_file_path: str | None = None,
+) -> UVCal:
     """
     Top-level wrapper for running sky-based calibration per polarization. This is the
     simplest sky-based calibration approach. Function creates a CalData object,
@@ -44,88 +46,86 @@ def sky_based_calibration_wrapper(
     Parameters
     ----------
     data : str or UVData
-        Path to the pyuvdata-readable file containing the  data visibilities
+        Path to the pyuvdata-readable file containing the data visibilities
         or a pyuvdata UVData object.
     model : str or UVData
         Path to the pyuvdata-readable file containing the model visibilities
         or a pyuvdata UVData object.
-    data_use_column : str
+    data_use_column : str, default="DATA"
         Column in an ms file to use for the data visibilities. Used only if
-        data_file_path points to an ms file. Default "DATA".
-    model_use_column : str
+        data_file_path points to an ms file.
+    model_use_column : str, default="MODEL_DATA"
         Column in an ms file to use for the model visibilities. Used only if
-        data_file_path points to an ms file. Default "MODEL_DATA".
-    gain_init_calfile : str or None
-        Default None. If not None, provides a path to a pyuvdata-formatted
-        calfits file containing gains values for calibration initialization.
-    gain_init_to_vis_ratio : bool
+        data_file_path points to an ms file.
+    gain_init_calfile : str, optional, default=None
+        If not None, provides a path to a pyuvdata-formatted calfits file
+        containing gains values for calibration initialization.
+    gain_init_to_vis_ratio : bool, default=True
         Used only if gain_init_calfile is None. If True, initializes gains
         to the median ratio between the amplitudes of the model and data
-        visibilities. If False, the gains are initialized to 1. Default
-        True.
-    gains_multiply_model : bool
+        visibilities. If False, the gains are initialized to 1.
+    gains_multiply_model : bool, default=False
         If True, measurement equation is defined as v_ij ≈ g_i g_j^* m_ij. If
-        False, measurement equation is defined as g_i g_j^* v_ij ≈ m_ij. Default
-        False.
-    gain_init_stddev : float
-        Default 0.0. Standard deviation of a random complex Gaussian
-        perturbation to the initial gains.
-    N_feed_pols : int
-        Default min(2, N_vis_pols). Number of feed polarizations, equal to
-        the number of gain values to be calculated per antenna.
-    feed_polarization_array : array of int or None
+        False, measurement equation is defined as g_i g_j^* v_ij ≈ m_ij.
+    gain_init_stddev : float, default=0.0
+        Standard deviation of a random complex Gaussian perturbation to the
+        initial gains.
+    N_feed_pols : int, default=min(2, N_vis_pols)
+        Number of feed polarizations, equal to the number of gain values to be
+        calculated per antenna.
+    feed_polarization_array : array of int, optional
         Feed polarizations to calibrate. Shape (N_feed_pols,). Options are
         -5 for X or -6 for Y. Default None. If None, feed_polarization_array
         is set to ([-5, -6])[:N_feed_pols].
-    min_cal_baseline_m : float or None
+    min_cal_baseline_m : float, optional, default=None
         Minimum baseline length, in meters, to use in calibration. If both
         min_cal_baseline_m and min_cal_baseline_lambda are None, arbitrarily
-        short baselines are used. Default None.
-    max_cal_baseline_m : float or None
+        short baselines are used.
+    max_cal_baseline_m : float, optional, default=None
         Maximum baseline length, in meters, to use in calibration. If both
         max_cal_baseline_m and max_cal_baseline_lambda are None, arbitrarily
-        long baselines are used. Default None.
-    min_cal_baseline_lambda : float or None
+        long baselines are used.
+    min_cal_baseline_lambda : float, optional, default=None
         Minimum baseline length, in wavelengths, to use in calibration. If
         both min_cal_baseline_m and min_cal_baseline_lambda are None,
-        arbitrarily short baselines are used. Default None.
-    max_cal_baseline_lambda : float or None
+        arbitrarily short baselines are used.
+    max_cal_baseline_lambda : float, optional, default=None
         Maximum baseline length, in wavelengths, to use in calibration. If
         both max_cal_baseline_m and max_cal_baseline_lambda are None,
-        arbitrarily long baselines are used. Default None.
-    lambda_val : float
-        Weight of the phase regularization term; must be positive. Default
-        100.
-    xtol : float
-        Accuracy tolerance for optimizer. Default 1e-5.
-    maxiter : int
-        Maximum number of iterations for the optimizer. Default 200.
-    get_crosspol_phase : bool
-        If True, crosspol phase is calculated. Default True.
-    crosspol_phase_strategy : str
+        arbitrarily long baselines are used.
+    lambda_val : float, default=0.0
+        Weight of the phase regularization term; must be positive or 0.
+    xtol : float, default=1e-5
+        Accuracy tolerance for optimizer.
+    maxiter : int, default=200
+        Maximum number of iterations for the optimizer.
+    get_crosspol_phase : bool, default=True
+        If True, crosspol phase is calculated.
+    crosspol_phase_strategy : str, default="crosspol model"
         Options are "crosspol model" or "pseudo Stokes V". Used only if
         get_crosspol_phase is True. If "crosspol model", contrains the crosspol
         phase using the crosspol model visibilities. If "pseudo Stokes V", constrains
-        crosspol phase by minimizing pseudo Stokes V. Default "crosspol model".
-    antenna_flagging_iterations : int
+        crosspol phase by minimizing pseudo Stokes V.
+    antenna_flagging_iterations : int, default=1
         If >0, pre-calibrate and flag antennas based on the residual per-antenna cost.
-    antenna_flagging_threshold : float
+    antenna_flagging_threshold : float, default=2.5
         Used only if antenna_flagging_iterations>0. Per antenna cost values equal to
-        flagging_threshold times the mean value will be flagged. Default 2.5.
+        flagging_threshold times the mean value will be flagged.
     parallel : bool
         Set to True to parallelize across frequency with multiprocessing.
         Default True if Nfreqs > 1.
-    max_processes : int or None
+    max_processes : int, optional, default=40
         Maximum number of multithreaded processes to use. Applicable only if
-        parallel is True. If None, uses the multiprocessing default. Default 40.
-    verbose : bool
-        Set to True to print optimization outputs. Default False.
-    log_file_path : str or None
-        Path to the log file. Default None.
+        parallel is True. If None, uses the multiprocessing default.
+    verbose : bool, default=False
+        Set to True to print optimization outputs.
+    log_file_path : str, optional, default=None
+        Path to the log file.
 
     Returns
     -------
-    uvcal : pyuvdata UVCal object
+    UVCal
+        A UVCal object containing the calibrated complex antenna gains.
     """
 
     if log_file_path is not None:
@@ -191,8 +191,8 @@ def sky_based_calibration_wrapper(
 
     caldata_obj = caldata.CalData()
     caldata_obj.load_data(
-        data,
-        model,
+        data=data,
+        model=model,
         gain_init_calfile=gain_init_calfile,
         gain_init_to_vis_ratio=gain_init_to_vis_ratio,
         gains_multiply_model=gains_multiply_model,
@@ -276,22 +276,22 @@ def sky_based_calibration_wrapper(
 
 
 def abscal_wrapper(
-    data,
-    model,
-    data_use_column="DATA",
-    model_use_column="MODEL_DATA",
-    N_feed_pols=None,
-    feed_polarization_array=None,
-    gains_multiply_model=False,
-    min_cal_baseline_m=None,
-    max_cal_baseline_m=None,
-    min_cal_baseline_lambda=None,
-    max_cal_baseline_lambda=None,
-    xtol=1e-4,
-    maxiter=100,
-    verbose=False,
-    log_file_path=None,
-):
+    data: str | UVData,
+    model: str | UVData,
+    data_use_column: str = "DATA",
+    model_use_column: str = "MODEL_DATA",
+    N_feed_pols: int | None = None,
+    feed_polarization_array: NDArray[int] | None = None,
+    gains_multiply_model: bool = False,
+    min_cal_baseline_m: float | None = None,
+    max_cal_baseline_m: float | None = None,
+    min_cal_baseline_lambda: float | None = None,
+    max_cal_baseline_lambda: float | None = None,
+    xtol: float = 1e-4,
+    maxiter: int = 100,
+    verbose: bool = False,
+    log_file_path: str | None = None,
+) -> NDArray[np.floating]:
     """
     Top-level wrapper for running absolute calibration ("abscal").
 
@@ -303,51 +303,50 @@ def abscal_wrapper(
     model : str or UVData
         Path to the pyuvdata-readable file containing the model visibilities
         or a pyuvdata UVData object.
-    data_use_column : str
+    data_use_column : str, default="DATA"
         Column in an ms file to use for the data visibilities. Used only if
-        data_file_path points to an ms file. Default "DATA".
-    model_use_column : str
+        data_file_path points to an ms file.
+    model_use_column : str, default="MODEL_DATA"
         Column in an ms file to use for the model visibilities. Used only if
-        data_file_path points to an ms file. Default "MODEL_DATA".
-    N_feed_pols : int
-        Default min(2, N_vis_pols). Number of feed polarizations, equal to
-        the number of gain values to be calculated per antenna.
-    feed_polarization_array : array of int or None
+        data_file_path points to an ms file.
+    N_feed_pols : int, default=min(2, N_vis_pols)
+        Number of feed polarizations, equal to the number of gain values to be
+        calculated per antenna.
+    feed_polarization_array : array of int, optional
         Feed polarizations to calibrate. Shape (N_feed_pols,). Options are
         -5 for X or -6 for Y. Default None. If None, feed_polarization_array
         is set to ([-5, -6])[:N_feed_pols].
-    gains_multiply_model : bool
-        If True, the abscal parameters multiply the model visibilities. Default
-        False.
-    min_cal_baseline_m : float or None
+    gains_multiply_model : bool, default=False
+        If True, the abscal parameters multiply the model visibilities.
+    min_cal_baseline_m : float, optional, default=None
         Minimum baseline length, in meters, to use in calibration. If both
         min_cal_baseline_m and min_cal_baseline_lambda are None, arbitrarily
-        short baselines are used. Default None.
-    max_cal_baseline_m : float or None
+        short baselines are used.
+    max_cal_baseline_m : float, optional, default=None
         Maximum baseline length, in meters, to use in calibration. If both
         max_cal_baseline_m and max_cal_baseline_lambda are None, arbitrarily
-        long baselines are used. Default None.
-    min_cal_baseline_lambda : float or None
+        long baselines are used.
+    min_cal_baseline_lambda : float, optional, default=None
         Minimum baseline length, in wavelengths, to use in calibration. If
         both min_cal_baseline_m and min_cal_baseline_lambda are None,
-        arbitrarily short baselines are used. Default None.
-    max_cal_baseline_lambda : float or None
+        arbitrarily short baselines are used.
+    max_cal_baseline_lambda : float, optional, default=None
         Maximum baseline length, in wavelengths, to use in calibration. If
         both max_cal_baseline_m and max_cal_baseline_lambda are None,
         arbitrarily long baselines are used. Default None.
-    xtol : float
-        Accuracy tolerance for optimizer. Default 1e-4.
-    maxiter : int
-        Maximum number of iterations for the optimizer. Default 100.
-    verbose : bool
-        Set to True to print optimization outputs. Default False.
-    log_file_path : str or None
-        Path to the log file. Default None.
+    xtol : float, default=1e-4
+        Accuracy tolerance for optimizer.
+    maxiter : int, default=100
+        Maximum number of iterations for the optimizer.
+    verbose : bool, default=False
+        Set to True to print optimization outputs.
+    log_file_path : str, optional, default=None
+        Path to the log file.
 
     Returns
     -------
-    abscal_params : array of float
-        Shape (3, Nfreqs, N_feed_pols). abscal_params[0, :, :] are the overall amplitudes,
+    ndarray of float, shape (3, Nfreqs, N_feed_pols)
+        Array of solved abscal parameters. abscal_params[0, :, :] are the overall amplitudes,
         abscal_params[1, :, :] are the x-phase gradients in units 1/m, and abscal_params[2, :, :]
         are the y-phase gradients in units 1/m.
     """
@@ -434,26 +433,26 @@ def abscal_wrapper(
 
 
 def dw_absolute_calibration(
-    data,
-    model,
-    delay_spectrum_variance,
-    bl_length_bin_edges,
-    delay_axis,
-    data_use_column="DATA",
-    model_use_column="MODEL_DATA",
-    initial_abscal_params=None,
-    gains_multiply_model=False,
-    N_feed_pols=None,
-    feed_polarization_array=None,
-    min_cal_baseline_m=None,
-    max_cal_baseline_m=None,
-    min_cal_baseline_lambda=None,
-    max_cal_baseline_lambda=None,
-    xtol=1e-6,
-    maxiter=100,
-    verbose=False,
-    log_file_path=None,
-):
+    data: str | UVData,
+    model: str | UVData,
+    delay_spectrum_variance: NDArray[np.floating],
+    bl_length_bin_edges: NDArray[np.floating],
+    delay_axis: NDArray[np.floating],
+    data_use_column: str = "DATA",
+    model_use_column: str = "MODEL_DATA",
+    initial_abscal_params: NDArray[np.floating] | None = None,
+    gains_multiply_model: bool = False,
+    N_feed_pols: int | None = None,
+    feed_polarization_array: NDArray[int] | None = None,
+    min_cal_baseline_m: float | None = None,
+    max_cal_baseline_m: float | None = None,
+    min_cal_baseline_lambda: float | None = None,
+    max_cal_baseline_lambda: float | None = None,
+    xtol: float = 1e-6,
+    maxiter: int = 100,
+    verbose: bool = False,
+    log_file_path: str | None = None,
+) -> NDArray[np.floating]:
     """
     Top-level wrapper for running absolute calibration ("abscal") with delay weighting.
 
@@ -465,66 +464,63 @@ def dw_absolute_calibration(
     model : str or UVData
         Path to the pyuvdata-readable file containing the model visibilities
         or a pyuvdata UVData object.
-    delay_spectrum_variance : array of float
+    delay_spectrum_variance : array of float, shape (Nbins, Ndelays)
         Array containing the expected variance as a function of baseline length and delay.
-        Shape (Nbins, Ndelays,).
-    bl_length_bin_edges : array of float
+    bl_length_bin_edges : array of float, shape (Nbins+1,)
         Defines the baseline length axis of delay_spectrum_variance. Values correspond to
-        limits of each baseline length bin. Shape (Nbins+1,).
-    delay_axis : array of float
-        Defines the delay axis of delay_spectrum_variance. Shape (Ndelays,).
-    data_use_column : str
+        limits of each baseline length bin.
+    delay_axis : array of float, shape (Ndelays,)
+        Defines the delay axis of delay_spectrum_variance.
+    data_use_column : str, default="DATA"
         Column in an ms file to use for the data visibilities. Used only if
-        data_file_path points to an ms file. Default "DATA".
-    model_use_column : str
+        data_file_path points to an ms file.
+    model_use_column : str, default="MODEL_DATA"
         Column in an ms file to use for the model visibilities. Used only if
-        data_file_path points to an ms file. Default "MODEL_DATA".
-    initial_abscal_params : array of float
-        Parameters to initialize with. Shape (3, Nfreqs, N_feed_pols). abscal_params[0, :, :]
-        are the overall amplitudes, abscal_params[1, :, :] are the x-phase gradients in units
-        1/m, and abscal_params[2, :, :] are the y-phase gradients in units 1/m. Currently the
+        data_file_path points to an ms file.
+    initial_abscal_params : array of float, shape (3, Nfreqs, N_feed_pols)
+        Parameters to initialize with. abscal_params[0, :, :] are the overall amplitudes,
+        abscal_params[1, :, :] are the x-phase gradients in units 1/m, and
+        abscal_params[2, :, :] are the y-phase gradients in units 1/m. Currently the
         frequency and polarization axes must match those in the data (this should be fixed).
-    gains_multiply_model : bool
-        If True, the abscal parameters multiply the model visibilities. Default
-        False.
-    N_feed_pols : int
-        Default min(2, N_vis_pols). Number of feed polarizations, equal to
-        the number of gain values to be calculated per antenna.
-    feed_polarization_array : array of int or None
-        Feed polarizations to calibrate. Shape (N_feed_pols,). Options are
-        -5 for X or -6 for Y. Default None. If None, feed_polarization_array
-        is set to ([-5, -6])[:N_feed_pols].
-    min_cal_baseline_m : float or None
+    gains_multiply_model : bool, default=False
+        If True, the abscal parameters multiply the model visibilities.
+    N_feed_pols : int, default=min(2, N_vis_pols)
+        Number of feed polarizations, equal to the number of gain values to be calculated
+        per antenna.
+    feed_polarization_array : array of int, optional, shape (N_feed_pols,), default=None
+        Feed polarizations to calibrate. Options are -5 for X or -6 for Y.
+        If None, feed_polarization_array is set to ([-5, -6])[:N_feed_pols].
+    min_cal_baseline_m : float, optional, default=None
         Minimum baseline length, in meters, to use in calibration. If both
         min_cal_baseline_m and min_cal_baseline_lambda are None, arbitrarily
-        short baselines are used. Default None.
-    max_cal_baseline_m : float or None
+        short baselines are used.
+    max_cal_baseline_m : float, optional, default=None
         Maximum baseline length, in meters, to use in calibration. If both
         max_cal_baseline_m and max_cal_baseline_lambda are None, arbitrarily
-        long baselines are used. Default None.
-    min_cal_baseline_lambda : float or None
+        long baselines are used.
+    min_cal_baseline_lambda : float, optional, default=None
         Minimum baseline length, in wavelengths, to use in calibration. If
         both min_cal_baseline_m and min_cal_baseline_lambda are None,
-        arbitrarily short baselines are used. Default None.
-    max_cal_baseline_lambda : float or None
+        arbitrarily short baselines are used.
+    max_cal_baseline_lambda : float, optional, default=None
         Maximum baseline length, in wavelengths, to use in calibration. If
         both max_cal_baseline_m and max_cal_baseline_lambda are None,
-        arbitrarily long baselines are used. Default None.
-    xtol : float
-        Accuracy tolerance for optimizer. Default 1e-6.
-    maxiter : int
-        Maximum number of iterations for the optimizer. Default 100.
-    verbose : bool
+        arbitrarily long baselines are used.
+    xtol : float, default=1e-6
+        Accuracy tolerance for optimizer.
+    maxiter : int, default=100
+        Maximum number of iterations for the optimizer.
+    verbose : bool, default=False
         Set to True to print optimization outputs. Default False.
-    log_file_path : str or None
-        Path to the log file. Default None.
+    log_file_path : str, optional, default=None
+        Path to the log file.
 
     Returns
     -------
-    abscal_params : array of float
-        Shape (3, Nfreqs, N_feed_pols). abscal_params[0, :, :] are the overall amplitudes,
-        abscal_params[1, :, :] are the x-phase gradients in units 1/m, and abscal_params[2, :, :]
-        are the y-phase gradients in units 1/m.
+    ndarray of float, shape (3, Nfreqs, N_feed_pols)
+        abscal_params[0, :, :] are the overall amplitudes, abscal_params[1, :, :] are the
+        x-phase gradients in units 1/m, and abscal_params[2, :, :] are the y-phase gradients
+        in units 1/m.
     """
 
     if log_file_path is not None:
@@ -622,12 +618,12 @@ def dw_absolute_calibration(
 
 
 def apply_abscal(
-    uvdata,
-    abscal_params,
-    feed_polarization_array,
-    gains_multiply_model=False,
-    inplace=False,
-):
+    uvdata: UVData,
+    abscal_params: NDArray[np.floating],
+    feed_polarization_array: NDArray[np.int_],
+    gains_multiply_model: bool = False,
+    inplace: bool = False,
+) -> UVData | None:
     """
     Apply absolute calibration solutions to data.
 
@@ -635,23 +631,23 @@ def apply_abscal(
     ----------
     uvdata : pyuvdata UVData object
         pyuvdata UVData object containing the data.
-    abscal_params : array of float
-        Shape (3, Nfreqs, N_feed_pols). abscal_params[0, :, :] are the overall amplitudes,
-        abscal_params[1, :, :] are the x-phase gradients in units 1/m, and abscal_params[2, :, :]
-        are the y-phase gradients in units 1/m.
-    feed_polarization_array : array of int
-        Shape (N_feed_pols). Array of polarization integers. Indicates the
-        ordering of the polarization axis of the gains. X is -5 and Y is -6.
-    gains_multiply_model : bool
+    abscal_params : array of float, shape (3, Nfreqs, N_feed_pols)
+        abscal_params[0, :, :] are the overall amplitudes, abscal_params[1, :, :] are the
+        x-phase gradients in units 1/m, and abscal_params[2, :, :] are the y-phase gradients
+        in units 1/m.
+    feed_polarization_array : array of int, shape (N_feed_pols,)
+        Array of polarization integers. Indicates the ordering of the polarization axis of
+        the gains. X is -5 and Y is -6.
+    gains_multiply_model : bool, default=False
         If True, the data is divided by the abscal term. If False, data is multiplied by the abscal
-        term. Default False.
-    inplace : bool
+        term.
+    inplace : bool, default=False
         If True, updates uvdata. If False, returns a new UVData object.
 
     Returns
     -------
-    uvdata_new : pyuvdata UVData object
-        Returned only if inplace is False.
+    UVData or None
+        Calibrated UVData object if `inplace=False`, otherwise None.
     """
 
     if not inplace:

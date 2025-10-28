@@ -1,17 +1,19 @@
 import numpy as np
 import sys
 from calico import utils
+from numpy.typing import NDArray
+from typing import Tuple
 
 
 def cost_skycal(
-    gains,
-    model_visibilities,
-    data_visibilities,
-    visibility_weights,
-    ant1_inds,
-    ant2_inds,
-    lambda_val,
-):
+    gains: NDArray[np.complexfloating],
+    model_visibilities: NDArray[np.complexfloating],
+    data_visibilities: NDArray[np.complexfloating],
+    visibility_weights: NDArray[np.floating],
+    ant1_inds: NDArray[np.integer],
+    ant2_inds: NDArray[np.integer],
+    lambda_val: float,
+) -> float:
     """
     Calculate the cost function (chi-squared) value.
 
@@ -58,14 +60,14 @@ def cost_skycal(
 
 
 def jacobian_skycal(
-    gains,
-    model_visibilities,
-    data_visibilities,
-    visibility_weights,
-    ant1_inds,
-    ant2_inds,
-    lambda_val,
-):
+    gains: NDArray[np.complexfloating],
+    model_visibilities: NDArray[np.complexfloating],
+    data_visibilities: NDArray[np.complexfloating],
+    visibility_weights: NDArray[np.floating],
+    ant1_inds: NDArray[np.integer],
+    ant2_inds: NDArray[np.integer],
+    lambda_val: float,
+) -> NDArray[np.complexfloating]:
     """
     Calculate the Jacobian of the cost function.
 
@@ -141,12 +143,12 @@ def jacobian_skycal(
 
 
 def reformat_baselines_to_antenna_matrix(
-    bl_array,
-    ant1_inds,
-    ant2_inds,
-    Nants,
-    Nbls,
-):
+    bl_array: NDArray,
+    ant1_inds: NDArray[np.integer],
+    ant2_inds: NDArray[np.integer],
+    Nants: int,
+    Nbls: int,
+) -> NDArray:
     """
     Reformat an array indexed in baselines into a matrix with antenna indices.
 
@@ -189,16 +191,16 @@ def reformat_baselines_to_antenna_matrix(
 
 
 def hessian_skycal(
-    gains,
-    Nants,
-    Nbls,
-    model_visibilities,
-    data_visibilities,
-    visibility_weights,
-    ant1_inds,
-    ant2_inds,
-    lambda_val,
-):
+    gains: NDArray[np.complexfloating],
+    Nants: int,
+    Nbls: int,
+    model_visibilities: NDArray[np.complexfloating],
+    data_visibilities: NDArray[np.complexfloating],
+    visibility_weights: NDArray[np.floating],
+    ant1_inds: NDArray[np.integer],
+    ant2_inds: NDArray[np.integer],
+    lambda_val: float,
+) -> Tuple[NDArray[np.floating], NDArray[np.floating], NDArray[np.floating]]:
     """
     Calculate the Hessian of the cost function.
 
@@ -349,13 +351,13 @@ def hessian_skycal(
 
 
 def set_crosspol_phase(
-    gains,
-    crosspol_model_visibilities,
-    crosspol_data_visibilities,
-    crosspol_visibility_weights,
-    ant1_inds,
-    ant2_inds,
-):
+    gains: NDArray[np.complexfloating],
+    crosspol_model_visibilities: NDArray[np.complexfloating],
+    crosspol_data_visibilities: NDArray[np.complexfloating],
+    crosspol_visibility_weights: NDArray[np.floating],
+    ant1_inds: NDArray[int],
+    ant2_inds: NDArray[int],
+) -> float:
     """
     Calculate the cross-polarization phase between the P and Q gains. This
     quantity is not constrained in typical per-polarization calibration but is
@@ -412,12 +414,12 @@ def set_crosspol_phase(
 
 
 def set_crosspol_phase_pseudoV(
-    gains,
-    crosspol_data_visibilities,
-    crosspol_visibility_weights,
-    ant1_inds,
-    ant2_inds,
-):
+    gains: NDArray[np.complexfloating],
+    crosspol_data_visibilities: NDArray[np.complexfloating],
+    crosspol_visibility_weights: NDArray[np.floating],
+    ant1_inds: NDArray[int],
+    ant2_inds: NDArray[int],
+) -> float:
     """
     Calculate the cross-polarization phase between the P and Q gains. This
     quantity is not constrained in typical per-polarization calibration but is
@@ -473,13 +475,13 @@ def set_crosspol_phase_pseudoV(
 
 
 def cost_function_abs_cal(
-    amp,
-    phase_grad,
-    model_visibilities,
-    data_visibilities,
-    uv_array,
-    visibility_weights,
-):
+    amp: float,
+    phase_grad: NDArray[float],
+    model_visibilities: NDArray[np.complexfloating],
+    data_visibilities: NDArray[np.complexfloating],
+    uv_array: NDArray[np.floating],
+    visibility_weights: NDArray[np.floating],
+) -> float:
     """
     Calculate the cost function (chi-squared) value for absolute calibration.
 
@@ -513,13 +515,13 @@ def cost_function_abs_cal(
 
 
 def jacobian_abs_cal(
-    amp,
-    phase_grad,
-    model_visibilities,
-    data_visibilities,
-    uv_array,
-    visibility_weights,
-):
+    amp: float,
+    phase_grad: NDArray[float],
+    model_visibilities: NDArray[np.complexfloating],
+    data_visibilities: NDArray[np.complexfloating],
+    uv_array: NDArray[np.floating],
+    visibility_weights: NDArray[np.floating],
+) -> Tuple[float, NDArray[np.floating]]:
     """
     Calculate the Jacobian for absolute calibration.
 
@@ -576,13 +578,13 @@ def jacobian_abs_cal(
 
 
 def hess_abs_cal(
-    amp,
-    phase_grad,
-    model_visibilities,
-    data_visibilities,
-    uv_array,
-    visibility_weights,
-):
+    amp: float,
+    phase_grad: NDArray[float],
+    model_visibilities: NDArray[np.complexfloating],
+    data_visibilities: NDArray[np.complexfloating],
+    uv_array: NDArray[np.floating],
+    visibility_weights: NDArray[np.floating],
+) -> Tuple[float, float, float, float, float, float]:
     """
     Calculate the Hessian for absolute calibration.
 
@@ -682,14 +684,14 @@ def hess_abs_cal(
 
 
 def cost_function_dw_abscal(
-    amp,
-    phase_grad,
-    model_visibilities,
-    data_visibilities,
-    uv_array,
-    visibility_weights,
-    dwcal_inv_covariance,
-):
+    amp: float,
+    phase_grad: NDArray[float],
+    model_visibilities: NDArray[np.complexfloating],
+    data_visibilities: NDArray[np.complexfloating],
+    uv_array: NDArray[np.floating],
+    visibility_weights: NDArray[np.floating],
+    dwcal_inv_covariance: NDArray[np.complexfloating],
+) -> float:
     """
     Calculate the cost function (chi-squared) value for absolute calibration
     with delay weighting.
@@ -738,14 +740,14 @@ def cost_function_dw_abscal(
 
 
 def cost_function_dw_abscal_toeplitz(
-    amp,
-    phase_grad,
-    model_visibilities,
-    data_visibilities,
-    uv_array,
-    visibility_weights,
-    dwcal_inv_covariance,
-):
+    amp: float,
+    phase_grad: NDArray[float],
+    model_visibilities: NDArray[np.complexfloating],
+    data_visibilities: NDArray[np.complexfloating],
+    uv_array: NDArray[np.floating],
+    visibility_weights: NDArray[np.floating],
+    dwcal_inv_covariance: NDArray[np.complexfloating],
+) -> float:
     """
     Calculate the cost function (chi-squared) value for absolute calibration
     with delay weighting.
@@ -794,14 +796,14 @@ def cost_function_dw_abscal_toeplitz(
 
 
 def jacobian_dw_abscal(
-    amp,
-    phase_grad,
-    model_visibilities,
-    data_visibilities,
-    uv_array,
-    visibility_weights,
-    dwcal_inv_covariance,
-):
+    amp: float,
+    phase_grad: NDArray[float],
+    model_visibilities: NDArray[np.complexfloating],
+    data_visibilities: NDArray[np.complexfloating],
+    uv_array: NDArray[np.floating],
+    visibility_weights: NDArray[np.floating],
+    dwcal_inv_covariance: NDArray[np.complexfloating],
+) -> Tuple[NDArray[np.floating], NDArray[np.floating]]:
     """
     Calculate the Jacobian for absolute calibration with delay weighting.
 
@@ -874,14 +876,21 @@ def jacobian_dw_abscal(
 
 
 def hess_dw_abscal(
-    amp,
-    phase_grad,
-    model_visibilities,
-    data_visibilities,
-    uv_array,
-    visibility_weights,
-    dwcal_inv_covariance,
-):
+    amp: float,
+    phase_grad: NDArray[float],
+    model_visibilities: NDArray[np.complexfloating],
+    data_visibilities: NDArray[np.complexfloating],
+    uv_array: NDArray[np.floating],
+    visibility_weights: NDArray[np.floating],
+    dwcal_inv_covariance: NDArray[np.complexfloating],
+) -> Tuple[
+    NDArray[np.floating],
+    NDArray[np.floating],
+    NDArray[np.floating],
+    NDArray[np.floating],
+    NDArray[np.floating],
+    NDArray[np.floating],
+]:
     """
     Calculate the Hessian for absolute calibration with delay weighting.
 

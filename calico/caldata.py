@@ -1,14 +1,16 @@
 import numpy as np
 import sys
 import pyuvdata
+from pyuvdata import UVCal
 from astropy.units import Quantity
 from calico import calibration_qa, calibration_optimization
 import multiprocessing
+from numpy.typing import NDArray
 
 
 class CalData:
     """
-    Object containing all data and parameters needed for calibration.
+    Container for all data and parameters needed for calibration.
 
     Attributes
     -------
@@ -117,7 +119,7 @@ class CalData:
         self.lst = None
         self.lambda_val = None
 
-    def set_gains_from_calfile(self, calfile):
+    def set_gains_from_calfile(self, calfile: str) -> None:
         """
         Use a pyuvdata-formatted calfits file to set gains.
 
@@ -161,20 +163,20 @@ class CalData:
 
     def load_data(
         self,
-        data,
-        model,
-        gain_init_calfile=None,
-        gain_init_to_vis_ratio=True,
-        gains_multiply_model=False,
-        gain_init_stddev=0.0,
-        N_feed_pols=None,
-        feed_polarization_array=None,
-        min_cal_baseline_m=None,
-        max_cal_baseline_m=None,
-        min_cal_baseline_lambda=None,
-        max_cal_baseline_lambda=None,
-        lambda_val=100,
-    ):
+        data: pyuvdata.UVData,
+        model: pyuvdata.UVData,
+        gain_init_calfile: str | None = None,
+        gain_init_to_vis_ratio: bool = True,
+        gains_multiply_model: bool = False,
+        gain_init_stddev: float = 0.0,
+        N_feed_pols: int | None = None,
+        feed_polarization_array: NDArray[int] | None = None,
+        min_cal_baseline_m: float | None = None,
+        max_cal_baseline_m: float | None = None,
+        min_cal_baseline_lambda: float | None = None,
+        max_cal_baseline_lambda: float | None = None,
+        lambda_val: float = 100.0,
+    ) -> None:
         """
         Format CalData object with parameters from data and model UVData
         objects.
@@ -625,7 +627,7 @@ class CalData:
 
         self.lambda_val = lambda_val
 
-    def expand_in_frequency(self):
+    def expand_in_frequency(self) -> list:
         """
         Converts a caldata object into a list of caldata objects each
         corresponding to one frequency.
@@ -681,7 +683,7 @@ class CalData:
 
         return caldata_list
 
-    def expand_in_polarization(self):
+    def expand_in_polarization(self) -> list:
         """
         Converts a caldata object into a list of caldata objects each
         corresponding to one feed polarization. List does not include
@@ -750,7 +752,7 @@ class CalData:
 
         return caldata_list
 
-    def convert_to_uvcal(self):
+    def convert_to_uvcal(self) -> UVCal:
         """
         Generate a pyuvdata UVCal object.
 
@@ -850,15 +852,15 @@ class CalData:
 
     def sky_based_calibration(
         self,
-        xtol=1e-5,
-        maxiter=200,
-        get_crosspol_phase=True,
-        crosspol_phase_strategy="crosspol model",
-        parallel=False,
-        max_processes=40,
-        pool=None,
-        verbose=False,
-    ):
+        xtol: float = 1e-5,
+        maxiter: int = 200,
+        get_crosspol_phase: bool = True,
+        crosspol_phase_strategy: str = "crosspol model",
+        parallel: bool = False,
+        max_processes: int | None = 40,
+        pool=None,  # Type hint?
+        verbose: bool = False,
+    ) -> None:
         """
         Run calibration per polarization. Updates the gains attribute with calibrated values.
         Here the XX and YY visibilities are calibrated individually and the cross-polarization
@@ -885,7 +887,7 @@ class CalData:
             Maximum number of multithreaded processes to use. Applicable only if
             parallel is True and pool is None. If None, uses the multiprocessing
             default. Default 40.
-        pool : multiprocessing.pool.Pool or None
+        pool : multiprocessing.Pool or None
             Pool for multiprocessing. If None and parallel is True, a new pool will be
             created. Default None.
         verbose : bool
@@ -939,7 +941,9 @@ class CalData:
                     )
                     self.gains[:, [freq_ind], :] = gains_fit[:, np.newaxis, :]
 
-    def abscal(self, xtol=1e-5, maxiter=200, verbose=False):
+    def abscal(
+        self, xtol: float = 1e-5, maxiter: int = 200, verbose: bool = False
+    ) -> None:
         """
         Run absolute calibration ("abscal"). Updates the abscal_params attribute with calibrated values.
 
@@ -967,7 +971,9 @@ class CalData:
             )
             self.abscal_params[:, [freq_ind], :] = abscal_params[:, [0], :]
 
-    def dw_abscal(self, xtol=1e-5, maxiter=200, verbose=False):
+    def dw_abscal(
+        self, xtol: float = 1e-5, maxiter: int = 200, verbose: bool = False
+    ) -> None:
         """
         Run absolute calibration ("abscal") with delay weighting. Updates the
         abscal_params attribute with calibrated values.
@@ -991,10 +997,10 @@ class CalData:
 
     def flag_antennas_from_per_ant_cost(
         self,
-        flagging_threshold=2.5,
-        return_antenna_flag_list=False,
-        verbose=True,
-    ):
+        flagging_threshold: float = 2.5,
+        return_antenna_flag_list: bool = False,
+        verbose: bool = True,
+    ) -> list | None:
         """
         Flags antennas based on the per-antenna cost function. Updates
         visibility_weights according to the flags. The cost function used is the
@@ -1077,11 +1083,11 @@ class CalData:
 
     def get_dwcal_weights_from_delay_spectra(
         self,
-        delay_spectrum_variance,
-        bl_length_bin_edges,
-        delay_axis,
-        oversample_factor=128,
-    ):
+        delay_spectrum_variance: NDArray[np.floating],
+        bl_length_bin_edges: NDArray[np.floating],
+        delay_axis: NDArray[np.floating],
+        oversample_factor: int = 128,
+    ) -> None:
         """
         This function calculates the matrix that captures delay weighting (or frequency
         covariance). The input is an array of expected variances as a function of baseline
