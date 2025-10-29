@@ -485,25 +485,25 @@ def hessian_dwcal_wrapper(
         axis=1,
     ).flatten()
 
-    hess_expaned = np.full(
+    hess_flattened = np.full(
         (Nants_unflagged, Nfreqs_unflagged, 2, Nants_unflagged, Nfreqs_unflagged, 2),
         np.nan,
         dtype=float,
     )
-    hess_expanded[
+    hess_flattened[
         np.ix_(ant_inds, freq_inds, np.array[0], ant_inds, freq_inds, np.array[0])
     ] = hess_real_real[:, :, :, :, 0]
-    hess_expanded[
+    hess_flattened[
         np.ix_(ant_inds, freq_inds, np.array[0], ant_inds, freq_inds, np.array[1])
     ] = hess_real_imag[:, :, :, :, 0]
-    hess_expanded[
+    hess_flattened[
         np.ix_(ant_inds, freq_inds, np.array[1], ant_inds, freq_inds, np.array[0])
     ] = np.conj(hess_imag_real[:, :, :, :, 0])
-    hess_expanded[
+    hess_flattened[
         np.ix_(ant_inds, freq_inds, np.array[1], ant_inds, freq_inds, np.array[1])
     ] = hess_imag_imag[:, :, :, :, 0]
     hess_flattened = np.reshape(
-        hess_expanded,
+        hess_flattened,
         (
             2 * Nants_unflagged * Nfreqs_unflagged,
             2 * Nants_unflagged * Nfreqs_unflagged,
