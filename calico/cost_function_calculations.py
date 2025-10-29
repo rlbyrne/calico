@@ -474,6 +474,120 @@ def set_crosspol_phase_pseudoV(
     return crosspol_phase
 
 
+def cost_dwcal(
+    gains: NDArray[np.complexfloating],
+    model_visibilities: NDArray[np.complexfloating],
+    data_visibilities: NDArray[np.complexfloating],
+    visibility_weights: NDArray[np.floating],
+    dwcal_inv_covariance: NDArray[np.complexfloating],
+    ant1_inds: NDArray[np.integer],
+    ant2_inds: NDArray[np.integer],
+    lambda_val: float,
+) -> float:
+    """
+    Calculate the cost function (chi-squared) value.
+
+    Parameters
+    ----------
+    gains : array of complex
+        Shape (Nants, Nfreqs, N_feed_pols).
+    model_visibilities :  array of complex
+        Shape (Ntimes, Nbls, Nfreqs, N_feed_pols). Cross-polarization visibilites are not
+        supported; visibilities should include XX and YY only, ordered to correspond to the
+        gain polarization convention.
+    data_visibilities : array of complex
+        Shape (Ntimes, Nbls, Nfreqs, N_feed_pols). Cross-polarization visibilites are not
+        supported; visibilities should include XX and YY only, ordered to correspond to the
+        gain polarization convention.
+    visibility_weights : array of float
+        Shape (Ntimes, Nbls, Nfreqs, N_feed_pols). Cross-polarization visibilites are not
+        supported; visibilities should include XX and YY only, ordered to correspond to the
+        gain polarization convention.
+    dwcal_inv_covariance : array of complex
+        Shape (Ntimes, Nbls, Nfreqs, Nfreqs, N_feed_pols). Matrix defining frequency-frequency
+        covariances.
+    ant1_inds : array of int
+        Shape (Nbls,).
+    ant2_inds : array of int
+        Shape (Nbls,).
+    lambda_val : float
+        Weight of the phase regularization term; must be positive.
+
+    Returns
+    -------
+    cost : float
+        Value of the cost function.
+    """
+
+    gains_expanded = (gains[ant1_inds, :, :] * np.conj(gains[ant2_inds, :, :]))[
+        np.newaxis, :, :, :
+    ]
+    res_vec = model_visibilities - gains_expanded * data_visibilities
+    cost = np.real(
+        np.sum(
+            dwcal_inv_covariance
+            * np.conj(res_vec[:, :, :, np.newaxis, :])
+            * res_vec[:, :, np.newaxis, :, :]
+        )
+    )
+
+    if lambda_val != 0.0:
+        cost += lambda_val * np.sum(np.sum(np.angle(gains), axis=0) ** 2.0)
+
+    return cost
+
+
+def jacobian_dwcal(
+    gains: NDArray[np.complexfloating],
+    model_visibilities: NDArray[np.complexfloating],
+    data_visibilities: NDArray[np.complexfloating],
+    visibility_weights: NDArray[np.floating],
+    dwcal_inv_covariance: NDArray[np.complexfloating],
+    ant1_inds: NDArray[np.integer],
+    ant2_inds: NDArray[np.integer],
+    lambda_val: float,
+) -> NDArray[np.complexfloating]:
+    """
+    Calculate the cost function (chi-squared) value.
+
+    Parameters
+    ----------
+    gains : array of complex
+        Shape (Nants, Nfreqs, N_feed_pols).
+    model_visibilities :  array of complex
+        Shape (Ntimes, Nbls, Nfreqs, N_feed_pols). Cross-polarization visibilites are not
+        supported; visibilities should include XX and YY only, ordered to correspond to the
+        gain polarization convention.
+    data_visibilities : array of complex
+        Shape (Ntimes, Nbls, Nfreqs, N_feed_pols). Cross-polarization visibilites are not
+        supported; visibilities should include XX and YY only, ordered to correspond to the
+        gain polarization convention.
+    visibility_weights : array of float
+        Shape (Ntimes, Nbls, Nfreqs, N_feed_pols). Cross-polarization visibilites are not
+        supported; visibilities should include XX and YY only, ordered to correspond to the
+        gain polarization convention.
+    dwcal_inv_covariance : array of complex
+        Shape (Ntimes, Nbls, Nfreqs, Nfreqs, N_feed_pols). Matrix defining frequency-frequency
+        covariances.
+    ant1_inds : array of int
+        Shape (Nbls,).
+    ant2_inds : array of int
+        Shape (Nbls,).
+    lambda_val : float
+        Weight of the phase regularization term; must be positive.
+
+    Returns
+    -------
+    jac : array of complex
+        Jacobian of the cost function, shape (Nants, Nfreqs, N_feed_pols).
+        The real part corresponds to derivatives with respect to the real part of the
+        gains; the imaginary part corresponds to derivatives with respect to the
+        imaginary part of the gains.
+    """
+
+    return jac
+
+
 def cost_function_abs_cal(
     amp: float,
     phase_grad: NDArray[float],
