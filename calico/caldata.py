@@ -941,6 +941,33 @@ class CalData:
                     )
                     self.gains[:, [freq_ind], :] = gains_fit[:, np.newaxis, :]
 
+    def delay_weighted_calibration(
+        self, xtol: float = 1e-5, maxiter: int = 200, verbose: bool = False
+    ) -> None:
+        """
+        Run delay-weighted calibration (DWCal). Updates attribute gains with calibrated values.
+
+        Parameters
+        ----------
+        xtol : float
+            Accuracy tolerance for optimizer. Default 1e-5.
+        maxiter : int
+            Maximum number of iterations for the optimizer. Default 200.
+        verbose : bool
+            Set to True to print optimization outputs. Default False.
+        """
+
+        caldata_list = caldata_obj.expand_in_polarization()
+        for feed_pol_ind, caldata_per_pol in enumerate(caldata_list):
+            self.gains[:, :, [feed_pol_ind]] = (
+                calibration_optimization.run_dwcal_optimization_per_pol(
+                    self,
+                    xtol,
+                    maxiter,
+                    verbose=verbose,
+                )
+            )
+
     def abscal(
         self, xtol: float = 1e-5, maxiter: int = 200, verbose: bool = False
     ) -> None:
