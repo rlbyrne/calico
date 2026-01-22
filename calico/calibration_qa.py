@@ -243,6 +243,7 @@ def plot_gains(
     ymin: float | None = 0,
     ymax: float | None = None,
     zero_mean_phase: bool = False,
+    savefig: bool = True,
 ) -> None:
     """
     Plot gain values. Creates two set of plots for each the gain amplitudes and
@@ -274,6 +275,8 @@ def plot_gains(
     zero_mean_phase : bool
         If True, forces the mean phase of the gains to be zero. This helps compare
         calibration results generated with different reference antennas. Default False.
+    savefig : bool
+        If True, save figures as png.
     """
 
     cal = get_cal_data(cal, zero_mean_phase=zero_mean_phase)
@@ -440,10 +443,13 @@ def plot_gains(
                 frameon=False,
             )
             plt.tight_layout()
-            plt.savefig(
-                f"{use_plot_output_dir}/{plot_prefix}gain_amp_{plot_ind:02d}.png",
-                dpi=600,
-            )
+            if savefig:
+                plt.savefig(
+                    f"{use_plot_output_dir}/{plot_prefix}gain_amp_{plot_ind:02d}.png",
+                    dpi=600,
+                )
+            else:
+                plt.show()
             plt.close()
             subplot_ind = 0
             plot_ind += 1
@@ -507,10 +513,13 @@ def plot_gains(
                 frameon=False,
             )
             plt.tight_layout()
-            plt.savefig(
-                f"{use_plot_output_dir}/{plot_prefix}gain_phase_{plot_ind:02d}.png",
-                dpi=600,
-            )
+            if savefig:
+                plt.savefig(
+                    f"{use_plot_output_dir}/{plot_prefix}gain_phase_{plot_ind:02d}.png",
+                    dpi=600,
+                )
+            else:
+                plt.show()
             plt.close()
             subplot_ind = 0
             plot_ind += 1
