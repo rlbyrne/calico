@@ -327,6 +327,8 @@ def plot_gains(
             ),
         ]
     else:
+        if isinstance(cal_name, str):
+            cal_name = [cal_name, ""]
         legend_elements = [
             Line2D(
                 [0],
@@ -366,11 +368,28 @@ def plot_gains(
             ),
         ]
 
-    ant_names = np.sort(cal.telescope.antenna_names)
+    ant_nums = cal.ant_array
+    if cal2 is not None:
+        ant_nums = np.intersect1d(ant_nums, cal2.ant_array)
+
+    # Sort by antenna name
+    ant_names = np.array(
+        [
+            cal.telescope.antenna_names[
+                np.where(cal.telescope.antenna_numbers == ant_num)[0][0]
+            ]
+            for ant_num in ant_nums
+        ]
+    )
+    sort_inds = ant_names.argsort()
+    ant_nums = ant_nums[sort_inds]
+
     freq_axis_mhz = cal.freq_array.flatten() / 1e6
 
     # Apply flags
     cal.gain_array[np.where(cal.flag_array)] = np.nan + 1j * np.nan
+    if cal2 is not None:
+        cal2.gain_array[np.where(cal2.flag_array)] = np.nan + 1j * np.nan
 
     if cal.gain_array.ndim == 5:
         cal.gain_array = cal.gain_array[:, 0, :, :, :]
@@ -387,14 +406,17 @@ def plot_gains(
     x_range = [np.min(freq_axis_mhz), np.max(freq_axis_mhz)]
     subplot_ind = 0
     plot_ind = 1
-    for name in ant_names:
+    for ant_num in ant_nums:
         if subplot_ind == 0:
             fig, ax = plt.subplots(
                 nrows=3, ncols=4, figsize=(10, 8), sharex=True, sharey=True
             )
-        ant_ind = np.where(np.array(cal.telescope.antenna_names) == name)[0][0]
+        ant_ind = np.where(cal.ant_array == ant_num)[0][0]
+        ant_name = cal.telescope.antenna_names[
+            np.where(cal.telescope.antenna_numbers == ant_num)[0][0]
+        ]
         if cal2 is not None:
-            ant_ind2 = np.where(np.array(cal2.telescope.antenna_names) == name)[0][0]
+            ant_ind2 = np.where(cal2.ant_array == ant_num)[0][0]
         all_flagged = np.isnan(np.nanmean(cal.gain_array[ant_ind, :, 0, :]))
         if all_flagged and (cal2 is not None):
             if not np.isnan(np.nanmean(cal2.gain_array[ant_ind2, :, 0, :])):
@@ -431,9 +453,9 @@ def plot_gains(
                 )
         ax.flat[subplot_ind].set_ylim(y_range)
         ax.flat[subplot_ind].set_xlim(x_range)
-        ax.flat[subplot_ind].set_title(name)
+        ax.flat[subplot_ind].set_title(ant_name)
         subplot_ind += 1
-        if subplot_ind == len(ax.flat) or name == ant_names[-1]:
+        if subplot_ind == len(ax.flat) or ant_num == ant_nums[-1]:
             fig.supxlabel("Frequency (MHz)")
             fig.supylabel("Gain Amplitude")
             plt.legend(
@@ -457,14 +479,17 @@ def plot_gains(
     # Plot phases
     subplot_ind = 0
     plot_ind = 1
-    for name in ant_names:
+    for ant_num in ant_nums:
         if subplot_ind == 0:
             fig, ax = plt.subplots(
                 nrows=3, ncols=4, figsize=(10, 8), sharex=True, sharey=True
             )
-        ant_ind = np.where(np.array(cal.telescope.antenna_names) == name)[0][0]
+        ant_ind = np.where(cal.ant_array == ant_num)[0][0]
+        ant_name = cal.telescope.antenna_names[
+            np.where(cal.telescope.antenna_numbers == ant_num)[0][0]
+        ]
         if cal2 is not None:
-            ant_ind2 = np.where(np.array(cal2.telescope.antenna_names) == name)[0][0]
+            ant_ind2 = np.where(cal2.ant_array == ant_num)[0][0]
         all_flagged = np.isnan(np.nanmean(cal.gain_array[ant_ind, :, 0, :]))
         if all_flagged and (cal2 is not None):
             if not np.isnan(np.nanmean(cal2.gain_array[ant_ind2, :, 0, :])):
@@ -501,9 +526,9 @@ def plot_gains(
                 )
         ax.flat[subplot_ind].set_ylim([-np.pi, np.pi])
         ax.flat[subplot_ind].set_xlim(x_range)
-        ax.flat[subplot_ind].set_title(name)
+        ax.flat[subplot_ind].set_title(ant_name)
         subplot_ind += 1
-        if subplot_ind == len(ax.flat) or name == ant_names[-1]:
+        if subplot_ind == len(ax.flat) or ant_num == ant_nums[-1]:
             fig.supxlabel("Frequency (MHz)")
             fig.supylabel("Gain Phase (rad.)")
             plt.legend(
