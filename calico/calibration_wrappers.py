@@ -146,6 +146,11 @@ def sky_based_calibration_wrapper(
     if verbose:
         data_read_start_time = time.time()
 
+    check_vis_ordering = True
+    if isinstance(data, str) and isinstance(model, str):
+        if data == model:
+            check_vis_ordering = False  # Data and model come from the same file, so ordering will be identical
+
     print_data_read_time = False
     if isinstance(data, str):  # Read data
         data_file_path = data
@@ -197,6 +202,7 @@ def sky_based_calibration_wrapper(
         gain_init_to_vis_ratio=gain_init_to_vis_ratio,
         gains_multiply_model=gains_multiply_model,
         gain_init_stddev=gain_init_stddev,
+        check_vis_ordering=check_vis_ordering,
         N_feed_pols=N_feed_pols,
         feed_polarization_array=feed_polarization_array,
         min_cal_baseline_m=min_cal_baseline_m,
@@ -358,6 +364,11 @@ def abscal_wrapper(
 
     start_time = time.time()
 
+    check_vis_ordering = True
+    if isinstance(data, str) and isinstance(model, str):
+        if data == model:
+            check_vis_ordering = False  # Data and model come from the same file, so ordering will be identical
+
     data_read_start_time = time.time()
     print_data_read_time = False
     if isinstance(data, str):  # Read data
@@ -397,6 +408,7 @@ def abscal_wrapper(
     caldata_obj.load_data(
         data,
         model,
+        check_vis_ordering=check_vis_ordering,
         N_feed_pols=N_feed_pols,
         feed_polarization_array=feed_polarization_array,
         gains_multiply_model=gains_multiply_model,
@@ -530,6 +542,11 @@ def dw_absolute_calibration(
 
     start_time = time.time()
 
+    check_vis_ordering = True
+    if isinstance(data, str) and isinstance(model, str):
+        if data == model:
+            check_vis_ordering = False  # Data and model come from the same file, so ordering will be identical
+
     if verbose:
         print("Reading data...")
         sys.stdout.flush()
@@ -567,6 +584,7 @@ def dw_absolute_calibration(
     caldata_obj.load_data(
         data,
         model,
+        check_vis_ordering=check_vis_ordering,
         N_feed_pols=N_feed_pols,
         feed_polarization_array=feed_polarization_array,
         gains_multiply_model=gains_multiply_model,
