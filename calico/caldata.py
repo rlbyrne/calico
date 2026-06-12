@@ -85,7 +85,7 @@ class CalData:
     lst : str
         Local sidereal time (LST), in radians.
     lambda_val : float
-        Weight of the phase regularization term; must be positive. Default 100.
+        Weight of the phase regularization term; must be positive or zero.
     """
 
     def __init__(self):
@@ -169,13 +169,16 @@ class CalData:
         gain_init_to_vis_ratio: bool = True,
         gains_multiply_model: bool = False,
         gain_init_stddev: float = 0.0,
+        check_vis_ordering: bool = True,
         N_feed_pols: int | None = None,
         feed_polarization_array: NDArray[int] | None = None,
         min_cal_baseline_m: float | None = None,
         max_cal_baseline_m: float | None = None,
         min_cal_baseline_lambda: float | None = None,
         max_cal_baseline_lambda: float | None = None,
-        lambda_val: float = 100.0,
+        lambda_val: float = 0.0,
+        time_match_tol: float = 1e-5,
+        freq_match_tol: float = 1e-5,
     ) -> None:
         """
         Format CalData object with parameters from data and model UVData
@@ -205,6 +208,9 @@ class CalData:
         gain_init_stddev : float
             Default 0.0. Standard deviation of a random complex Gaussian
             perturbation to the initial gains.
+        check_vis_ordering : bool
+            Default True. If False, the ordering of the data and model visibilities are
+            assumed to be identical. This can cause errors if used incorrectly.
         N_feed_pols : int
             Default min(2, N_vis_pols). Number of feed polarizations, equal to
             the number of gain values to be calculated per antenna.
@@ -229,40 +235,45 @@ class CalData:
             both max_cal_baseline_m and max_cal_baseline_lambda are None,
             arbitrarily long baselines are used. Default None.
         lambda_val : float
-            Weight of the phase regularization term; must be positive. Default
-            100.
+            Weight of the phase regularization term; must be positive or zero.
+            Default 0.
+        time_match_tol : float
+            Tolerance threshold for time agreement between data and model. Units
+            Julian Date. Default 1e-5. Used only if check_vis_ordering is True.
+        freq_match_tol : float
+            Tolerance threshold for frequency agreement between data and model. Units
+            Julian Date. Default 1e-5. Used only if check_vis_ordering is True.
         """
 
         # Autocorrelations are not currently supported
         data.select(ant_str="cross")
         model.select(ant_str="cross")
 
-        # Ensure polarizations match
-        if model.Npols > data.Npols:
-            model.select(polarizations=data.polarization_array)
+        if check_vis_ordering:
+            # Ensure polarizations match
+            if model.Npols > data.Npols:
+                model.select(polarizations=data.polarization_array)
 
-        # Ensure times match
-        time_match_tol = 1e-5
-        if (
-            np.max(
-                np.abs(
-                    np.sort(list(set(data.time_array)))
-                    - np.sort(list(set(model.time_array)))
+            # Ensure times match
+            if (
+                np.max(
+                    np.abs(
+                        np.sort(list(set(data.time_array)))
+                        - np.sort(list(set(model.time_array)))
+                    )
                 )
-            )
-            > time_match_tol
-        ):
-            print("ERROR: Data and model times do not match. Exiting.")
-            sys.exit(1)
+                > time_match_tol
+            ):
+                print("ERROR: Data and model times do not match. Exiting.")
+                sys.exit(1)
 
-        # Ensure frequencies match
-        freq_match_tol = 1e-5
-        if (
-            np.max(np.abs(np.sort(data.freq_array) - np.sort(model.freq_array)))
-            > freq_match_tol
-        ):
-            print("ERROR: Data and model frequencies do not match. Exiting.")
-            sys.exit(1)
+            # Ensure frequencies match
+            if (
+                np.max(np.abs(np.sort(data.freq_array) - np.sort(model.freq_array)))
+                > freq_match_tol
+            ):
+                print("ERROR: Data and model frequencies do not match. Exiting.")
+                sys.exit(1)
 
         # Downselect baselines
         if (
@@ -307,31 +318,33 @@ class CalData:
             )
             model.select(blt_inds=model_use_baselines)
 
-        # Ensure baselines match
-        data.conjugate_bls()
-        data.reorder_blts()
-        model.conjugate_bls()
-        model.reorder_blts()
-        if data.Nblts != model.Nblts:
-            select_baselines = True
-        elif (np.max(np.abs(data.ant_1_array - model.ant_1_array)) > 0) or (
-            np.max(np.abs(data.ant_2_array - model.ant_2_array)) > 0
-        ):
-            select_baselines = True
-        else:
-            select_baselines = False
-        if select_baselines:
-            data_baselines = list(set(zip(data.ant_1_array, data.ant_2_array)))
-            model_baselines = list(set(zip(model.ant_1_array, model.ant_2_array)))
-            use_baselines = [
-                baseline for baseline in data_baselines if baseline in model_baselines
-            ]
-            if len(use_baselines) < data.Nbls:
-                print(
-                    f"WARNING: Model does not contain all baselines. Downselecting from {data.Nbls} to {len(use_baselines)}."
-                )
-            data.select(bls=use_baselines)
-            model.select(bls=use_baselines)
+        if check_vis_ordering:  # Ensure baselines match
+            data.conjugate_bls()
+            data.reorder_blts()
+            model.conjugate_bls()
+            model.reorder_blts()
+            if data.Nblts != model.Nblts:
+                select_baselines = True
+            elif (np.max(np.abs(data.ant_1_array - model.ant_1_array)) > 0) or (
+                np.max(np.abs(data.ant_2_array - model.ant_2_array)) > 0
+            ):
+                select_baselines = True
+            else:
+                select_baselines = False
+            if select_baselines:
+                data_baselines = list(set(zip(data.ant_1_array, data.ant_2_array)))
+                model_baselines = list(set(zip(model.ant_1_array, model.ant_2_array)))
+                use_baselines = [
+                    baseline
+                    for baseline in data_baselines
+                    if baseline in model_baselines
+                ]
+                if len(use_baselines) < data.Nbls:
+                    print(
+                        f"WARNING: Model does not contain all baselines. Downselecting from {data.Nbls} to {len(use_baselines)}."
+                    )
+                data.select(bls=use_baselines)
+                model.select(bls=use_baselines)
 
         self.Nants = data.Nants_data
         self.Nbls = data.Nbls
@@ -441,7 +454,7 @@ class CalData:
                 :,
             ] = True
 
-        # Create gains expand matrices
+        # Define antenna to baseline mapping
         self.ant1_inds = np.zeros(self.Nbls, dtype=int)
         self.ant2_inds = np.zeros(self.Nbls, dtype=int)
         self.antenna_numbers = np.unique(
@@ -913,6 +926,7 @@ class CalData:
                         0,
                         verbose,
                         get_crosspol_phase,
+                        crosspol_phase_strategy,
                     )
                     args_list.append(args)
                 if pool is None:
