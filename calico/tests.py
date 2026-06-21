@@ -1836,6 +1836,68 @@ class TestStringMethods(unittest.TestCase):
         np.testing.assert_allclose(hess_real_imag_1step, hess_real_imag_iterated)
         np.testing.assert_allclose(hess_imag_imag_1step, hess_imag_imag_iterated)
 
+    ################ DELAY-WEIGHTED CALIBRATION TESTS ################
+
+    def test_dwcal_identical_data_with_flags(self):
+
+        model = pyuvdata.UVData()
+        model.read(f"{THIS_DIR}/data/test_model_1freq.uvfits")
+        data = model.copy()
+
+        caldata_obj = caldata.CalData()
+        caldata_obj.load_data(data, model, gain_init_stddev=0.1, lambda_val=100.0)
+
+        # Unflag all
+        caldata_obj.visibility_weights = np.ones(
+            (
+                caldata_obj.Ntimes,
+                caldata_obj.Nbls,
+                caldata_obj.Nfreqs,
+                4,
+            ),
+            dtype=float,
+        )
+        # Set flags
+        caldata_obj.visibility_weights[2, 10, 0, :] = 0.0
+        caldata_obj.visibility_weights[1, 20, 0, :] = 0.0
+
+        caldata_obj.dwcal_inv_covariance = np.random.rand(
+            caldata_obj.Ntimes,
+            caldata_obj.Nbls,
+            caldata_obj.Nfreqs,
+            caldata_obj.Nfreqs,
+            caldata_obj.N_vis_pols,
+        ) + 1j * np.random.rand(
+            caldata_obj.Ntimes,
+            caldata_obj.Nbls,
+            caldata_obj.Nfreqs,
+            caldata_obj.Nfreqs,
+            caldata_obj.N_vis_pols,
+        )
+        caldata_obj.dwcal_inv_covariance = np.transpose(
+            np.matmul(
+                np.transpose(caldata_obj.dwcal_inv_covariance, axes=(0, 1, 4, 2, 3)),
+                np.conj(
+                    np.transpose(caldata_obj.dwcal_inv_covariance, axes=(0, 1, 4, 3, 2))
+                ),
+            ),
+            axes=(0, 1, 3, 4, 2),
+        )  # Enforce that the matrix is Hermitian
+
+        cost = calibration_optimization.cost_dwcal_wrapper(
+            np.ones(2 * caldata_obj.Nants * caldata_obj.Nfreqs, dtype=float),
+            caldata_obj,
+            np.arange(caldata_obj.Nants),
+            np.arange(caldata_obj.Nfreqs),
+            0,
+        )
+        caldata_obj.delay_weighted_calibration(
+            xtol=1e-8,
+        )
+
+        np.testing.assert_allclose(np.abs(caldata_obj.gains), 1.0)
+        np.testing.assert_allclose(np.angle(caldata_obj.gains), 0.0, atol=1e-6)
+
     ################ ABSCAL TESTS ################
 
     def test_abscal_amp_jac(self, verbose=False):

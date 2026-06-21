@@ -3,6 +3,7 @@ import sys
 from calico import utils
 from numpy.typing import NDArray
 from typing import Tuple
+import jax.numpy as jnp
 
 
 def cost_skycal(
@@ -519,26 +520,26 @@ def cost_dwcal(
         Value of the cost function.
     """
 
-    gains_expanded = (gains[ant1_inds, :, :] * np.conj(gains[ant2_inds, :, :]))[
-        np.newaxis, :, :, :
+    gains_expanded = (gains[ant1_inds, :, :] * jnp.conj(gains[ant2_inds, :, :]))[
+        jnp.newaxis, :, :, :
     ]
     res_vec = model_visibilities - gains_expanded * data_visibilities
-    cost = np.real(
-        np.sum(
+    cost = jnp.real(
+        jnp.sum(
             dwcal_inv_covariance
-            * np.conj(res_vec[:, :, :, np.newaxis, :])
-            * res_vec[:, :, np.newaxis, :, :]
+            * jnp.conj(res_vec[:, :, :, jnp.newaxis, :])
+            * res_vec[:, :, jnp.newaxis, :, :]
         )
     )
 
     if lambda_val != 0.0:
-        cost += lambda_val * np.sum(np.sum(np.angle(gains), axis=0) ** 2.0)
+        cost += lambda_val * jnp.sum(jnp.sum(jnp.angle(gains), axis=0) ** 2.0)
 
     return cost
 
 
 def jacobian_dwcal(
-    gains: NDArray[np.complexfloating],
+    gains: NDArray[np.floating],
     model_visibilities: NDArray[np.complexfloating],
     data_visibilities: NDArray[np.complexfloating],
     visibility_weights: NDArray[np.floating],

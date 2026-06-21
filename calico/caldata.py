@@ -973,11 +973,11 @@ class CalData:
             Set to True to print optimization outputs. Default False.
         """
 
-        caldata_list = caldata_obj.expand_in_polarization()
+        caldata_list = self.expand_in_polarization()
         for feed_pol_ind, caldata_per_pol in enumerate(caldata_list):
-            self.gains[:, :, [feed_pol_ind]] = (
+            self.gains[:, :, feed_pol_ind] = (
                 calibration_optimization.run_dwcal_optimization_per_pol(
-                    self,
+                    caldata_per_pol,
                     xtol,
                     maxiter,
                     verbose=verbose,
