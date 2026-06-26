@@ -7,6 +7,7 @@ import caldata
 import pyuvdata
 import os
 import unittest
+import scipy
 
 # Run all tests with pytest tests.py
 # Run one test with pytest tests.py::TestStringMethods::test_name
@@ -1837,6 +1838,28 @@ class TestStringMethods(unittest.TestCase):
         np.testing.assert_allclose(hess_imag_imag_1step, hess_imag_imag_iterated)
 
     ################ DELAY-WEIGHTED CALIBRATION TESTS ################
+
+    def test_toeplitz_multiplication_real(self):
+
+        vec1 = np.array([0.1, 5.0, 3.3])
+        x = np.array([2.0, 4.4, 66.8])
+        mat1 = scipy.linalg.toeplitz(vec1)
+        scipy_result = scipy.linalg.matmul_toeplitz(vec1, x)
+        calico_result = cost_function_calculations.multiply_toeplitz_matrix(vec1, x)
+        matmul_result = mat1 @ x
+        np.testing.assert_allclose(scipy_result, matmul_result)
+        np.testing.assert_allclose(scipy_result, calico_result)
+
+    def test_toeplitz_multiplication(self):
+
+        vec1 = np.array([0.1 + 1j, 5.0 + 0.001 * 1j, 3.3 + 50 * 1j])
+        x = np.array([2.0 + 2.0 * 1j, 4.4 + 1j, 66.8 + 3 * 1j])
+        mat1 = scipy.linalg.toeplitz(vec1)
+        scipy_result = scipy.linalg.matmul_toeplitz(vec1, x)
+        calico_result = cost_function_calculations.multiply_toeplitz_matrix(vec1, x)
+        matmul_result = mat1 @ x
+        np.testing.assert_allclose(scipy_result, matmul_result)
+        np.testing.assert_allclose(scipy_result, calico_result)
 
     def test_dwcal_identical_data_with_flags(self):
 

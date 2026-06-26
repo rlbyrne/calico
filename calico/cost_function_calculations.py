@@ -6,6 +6,33 @@ from typing import Tuple
 import jax.numpy as jnp
 
 
+def multiply_toeplitz_matrix(mat_toeplitz, vec, axis=0):
+
+    axis_len = mat_toeplitz.shape[axis]
+
+    mat_toeplitz_expanded = np.moveaxis(mat_toeplitz, axis, -1)
+    mat_toeplitz_expanded = np.concatenate(
+        [mat_toeplitz_expanded, mat_toeplitz_expanded[..., -2:0:-1]], axis=-1
+    )
+
+    vec_expanded = np.moveaxis(vec, axis, -1)
+    vec_expanded = np.concatenate(
+        [vec_expanded, np.zeros_like(vec_expanded[..., -2:0:-1])], axis=-1
+    )
+
+    mat_prod_expanded = np.fft.ifft(
+        np.fft.fft(mat_toeplitz_expanded, axis=-1) * np.fft.fft(vec_expanded, axis=-1),
+        axis=-1,
+    )
+    mat_prod = mat_prod_expanded[..., :axis_len]
+    mat_prod = np.moveaxis(mat_prod, -1, axis)
+
+    if np.isrealobj(mat_toeplitz) and np.isrealobj(vec):
+        mat_prod = mat_prod.real
+
+    return mat_prod
+
+
 def cost_skycal(
     gains: NDArray[np.complexfloating],
     model_visibilities: NDArray[np.complexfloating],
@@ -538,8 +565,8 @@ def cost_dwcal(
     return cost
 
 
-def jacobian_dwcal(
-    gains: NDArray[np.floating],
+def cost_dwcal_toeplitz(
+    gains: NDArray[np.complexfloating],
     model_visibilities: NDArray[np.complexfloating],
     data_visibilities: NDArray[np.complexfloating],
     visibility_weights: NDArray[np.floating],
@@ -547,7 +574,7 @@ def jacobian_dwcal(
     ant1_inds: NDArray[np.integer],
     ant2_inds: NDArray[np.integer],
     lambda_val: float,
-) -> NDArray[np.complexfloating]:
+) -> float:
     """
     Calculate the cost function (chi-squared) value.
 
@@ -579,14 +606,26 @@ def jacobian_dwcal(
 
     Returns
     -------
-    jac : array of complex
-        Jacobian of the cost function, shape (Nants, Nfreqs, N_feed_pols).
-        The real part corresponds to derivatives with respect to the real part of the
-        gains; the imaginary part corresponds to derivatives with respect to the
-        imaginary part of the gains.
+    cost : float
+        Value of the cost function.
     """
 
-    return jac
+    gains_expanded = (gains[ant1_inds, :, :] * jnp.conj(gains[ant2_inds, :, :]))[
+        jnp.newaxis, :, :, :
+    ]
+    res_vec = model_visibilities - gains_expanded * data_visibilities
+    cost = jnp.real(
+        jnp.sum(
+            dwcal_inv_covariance
+            * jnp.conj(res_vec[:, :, :, jnp.newaxis, :])
+            * res_vec[:, :, jnp.newaxis, :, :]
+        )
+    )
+
+    if lambda_val != 0.0:
+        cost += lambda_val * jnp.sum(jnp.sum(jnp.angle(gains), axis=0) ** 2.0)
+
+    return cost
 
 
 def cost_function_abs_cal(
@@ -898,12 +937,12 @@ def cost_function_dw_abscal_toeplitz(
         * data_visibilities
         - model_visibilities
     )  # Shape (Ntimes, Nbls, Nfreqs)
+
+    matmul_toeplitz = multiply_toeplitz_matrix(
+        dwcal_inv_covariance, np.conj(res_vec), axis=2
+    )
     cost = np.real(
-        np.sum(
-            dwcal_inv_covariance
-            * np.conj(res_vec[:, :, :, np.newaxis])
-            * res_vec[:, :, np.newaxis, :]
-        )
+        np.sum(*matmul_toeplitz[:, :, :, np.newaxis] * res_vec[:, :, np.newaxis, :])
     )
     print(f"DWAbscal cost: {cost}")
     sys.stdout.flush()
