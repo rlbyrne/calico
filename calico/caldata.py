@@ -422,7 +422,9 @@ class CalData:
             )
 
         # Free memory
-        data = model = data_copy = model_copy = None
+        data.__init__()
+        model.__init__()
+        data_copy = model_copy = None
 
         # Grab other metadata from uvfits
         self.channel_width = np.mean(metadata_reference.channel_width)
