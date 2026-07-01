@@ -12,12 +12,13 @@ def multiply_toeplitz_matrix(mat_toeplitz, vec, axis=0):
 
     mat_toeplitz_expanded = np.moveaxis(mat_toeplitz, axis, -1)
     mat_toeplitz_expanded = np.concatenate(
-        [mat_toeplitz_expanded, mat_toeplitz_expanded[..., -2:0:-1]], axis=-1
+        [mat_toeplitz_expanded, np.conj(mat_toeplitz_expanded[..., 1:][..., ::-1])],
+        axis=-1,
     )
 
     vec_expanded = np.moveaxis(vec, axis, -1)
     vec_expanded = np.concatenate(
-        [vec_expanded, np.zeros_like(vec_expanded[..., -2:0:-1])], axis=-1
+        [vec_expanded, np.zeros_like(vec_expanded[..., 1:][..., ::-1])], axis=-1
     )
 
     mat_prod_expanded = np.fft.ifft(
@@ -939,11 +940,9 @@ def cost_function_dw_abscal_toeplitz(
     )  # Shape (Ntimes, Nbls, Nfreqs)
 
     matmul_toeplitz = multiply_toeplitz_matrix(
-        dwcal_inv_covariance, np.conj(res_vec), axis=2
+        np.conj(dwcal_inv_covariance), res_vec, axis=2
     )
-    cost = np.real(
-        np.sum(*matmul_toeplitz[:, :, :, np.newaxis] * res_vec[:, :, np.newaxis, :])
-    )
+    cost = np.real(np.sum(matmul_toeplitz * np.conj(res_vec)))
     print(f"DWAbscal cost: {cost}")
     sys.stdout.flush()
     return cost

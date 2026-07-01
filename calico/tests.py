@@ -1839,17 +1839,6 @@ class TestStringMethods(unittest.TestCase):
 
     ################ DELAY-WEIGHTED CALIBRATION TESTS ################
 
-    def test_toeplitz_multiplication_real(self):
-
-        vec1 = np.array([0.1, 5.0, 3.3])
-        x = np.array([2.0, 4.4, 66.8])
-        mat1 = scipy.linalg.toeplitz(vec1)
-        scipy_result = scipy.linalg.matmul_toeplitz(vec1, x)
-        calico_result = cost_function_calculations.multiply_toeplitz_matrix(vec1, x)
-        matmul_result = mat1 @ x
-        np.testing.assert_allclose(scipy_result, matmul_result)
-        np.testing.assert_allclose(scipy_result, calico_result)
-
     def test_toeplitz_multiplication(self):
 
         vec1 = np.array([0.1 + 1j, 5.0 + 0.001 * 1j, 3.3 + 50 * 1j])
@@ -1860,6 +1849,93 @@ class TestStringMethods(unittest.TestCase):
         matmul_result = mat1 @ x
         np.testing.assert_allclose(scipy_result, matmul_result)
         np.testing.assert_allclose(scipy_result, calico_result)
+
+    def test_toeplitz_multiplication_tensors(self):
+
+        np.random.seed(0)
+        vec1 = np.random.normal(
+            0,
+            1,
+            size=(5, 6, 8),
+        ) + 1j * np.random.normal(
+            0,
+            1,
+            size=(5, 6, 8),
+        )
+        x = np.random.normal(
+            0,
+            1,
+            size=(5, 1, 8),
+        ) + 1j * np.random.normal(
+            0,
+            1,
+            size=(5, 1, 8),
+        )
+
+        calico_result = cost_function_calculations.multiply_toeplitz_matrix(
+            vec1, x, axis=2
+        )
+        scipy_result = np.zeros((5, 6, 8), dtype=complex)
+        for ind1 in range(5):
+            for ind2 in range(6):
+                scipy_result[ind1, ind2, :] = scipy.linalg.matmul_toeplitz(
+                    vec1[ind1, ind2, :], x[ind1, 0, :]
+                )
+        np.testing.assert_allclose(scipy_result, calico_result)
+
+    def test_convert_to_and_from_dwcal_memory_save(self):
+
+        model = pyuvdata.UVData()
+        model.read(f"{THIS_DIR}/data/test_model_1freq.uvfits")
+        data = pyuvdata.UVData()
+        data.read(f"{THIS_DIR}/data/test_data_1freq.uvfits")
+
+        use_Nfreqs = 5
+
+        data_copy = data.copy()
+        model_copy = model.copy()
+        for ind in range(1, use_Nfreqs):
+            data_copy.freq_array += 1e6 * ind
+            model_copy.freq_array += 1e6 * ind
+            data.fast_concat(data_copy, "freq", inplace=True)
+            model.fast_concat(model_copy, "freq", inplace=True)
+
+        caldata_obj = caldata.CalData()
+        caldata_obj.load_data(data, model)
+
+        caldata_obj.visibility_weights[:, :, :, :] = 1  # Unflag all
+        caldata_obj.dwcal_inv_covariance = np.random.rand(
+            caldata_obj.Ntimes,
+            caldata_obj.Nbls,
+            caldata_obj.Nfreqs,
+            caldata_obj.N_vis_pols,
+        ) + 1j * np.random.rand(
+            caldata_obj.Ntimes,
+            caldata_obj.Nbls,
+            caldata_obj.Nfreqs,
+            caldata_obj.N_vis_pols,
+        )
+        caldata_obj.dwcal_inv_covariance[:, :, 0, :] = np.real(
+            caldata_obj.dwcal_inv_covariance[:, :, 0, :]
+        )  # Ensure that the matrix is Hermitian by requiring the diagonals to be real
+        caldata_obj.dwcal_memory_save_mode = True
+
+        caldata_obj_expanded = caldata_obj.copy()
+        caldata_obj_expanded.convert_from_dwcal_memory_save_mode()
+        np.testing.assert_allclose(
+            caldata_obj_expanded.dwcal_inv_covariance[:, :, :, 0, :],
+            caldata_obj.dwcal_inv_covariance,
+        )
+        np.testing.assert_allclose(
+            np.conj(caldata_obj_expanded.dwcal_inv_covariance[:, :, 0, :, :]),
+            caldata_obj.dwcal_inv_covariance,
+        )
+
+        caldata_obj_expanded.convert_to_dwcal_memory_save_mode()
+        np.testing.assert_allclose(
+            caldata_obj_expanded.dwcal_inv_covariance,
+            caldata_obj.dwcal_inv_covariance,
+        )
 
     def test_dwcal_identical_data_with_flags(self):
 
@@ -2860,6 +2936,59 @@ class TestStringMethods(unittest.TestCase):
             hess_phasex_phasey_dwabscal[test_freq_ind, test_freq_ind],
             rtol=1e-7,
         )
+
+    def test_dwabscal_cost_toeplitz_agreement(self):
+
+        model = pyuvdata.UVData()
+        model.read(f"{THIS_DIR}/data/test_model_1freq.uvfits")
+        data = pyuvdata.UVData()
+        data.read(f"{THIS_DIR}/data/test_data_1freq.uvfits")
+
+        use_Nfreqs = 5
+
+        data_copy = data.copy()
+        model_copy = model.copy()
+        for ind in range(1, use_Nfreqs):
+            data_copy.freq_array += 1e6 * ind
+            model_copy.freq_array += 1e6 * ind
+            data.fast_concat(data_copy, "freq", inplace=True)
+            model.fast_concat(model_copy, "freq", inplace=True)
+
+        caldata_obj = caldata.CalData()
+        caldata_obj.load_data(data, model)
+
+        caldata_obj.visibility_weights[:, :, :, :] = 1  # Unflag all
+        caldata_obj.dwcal_inv_covariance = np.random.rand(
+            caldata_obj.Ntimes,
+            caldata_obj.Nbls,
+            caldata_obj.Nfreqs,
+            caldata_obj.N_vis_pols,
+        ) + 1j * np.random.rand(
+            caldata_obj.Ntimes,
+            caldata_obj.Nbls,
+            caldata_obj.Nfreqs,
+            caldata_obj.N_vis_pols,
+        )
+        caldata_obj.dwcal_inv_covariance[:, :, 0, :] = np.real(
+            caldata_obj.dwcal_inv_covariance[:, :, 0, :]
+        )  # Ensure that the matrix is Hermitian by requiring the diagonals to be real
+        caldata_obj.dwcal_memory_save_mode = True
+
+        caldata_obj_expanded = caldata_obj.copy()
+        caldata_obj_expanded.convert_from_dwcal_memory_save_mode()
+
+        abscal_params_flattened = caldata_obj.abscal_params[:, :, 0].flatten()
+        cost_toeplitz = calibration_optimization.cost_dw_abscal_wrapper(
+            abscal_params_flattened,
+            np.arange(caldata_obj.Nfreqs),
+            caldata_obj,
+        )
+        cost_full_mat = calibration_optimization.cost_dw_abscal_wrapper(
+            abscal_params_flattened,
+            np.arange(caldata_obj.Nfreqs),
+            caldata_obj_expanded,
+        )
+        np.testing.assert_allclose(cost_full_mat, cost_toeplitz)
 
     def test_dwabscal_jac_wrapper(self, verbose=False):
 
