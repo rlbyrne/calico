@@ -2029,6 +2029,11 @@ class TestStringMethods(unittest.TestCase):
             maxiter=100,
             verbose=True,
         )
+
+        model = pyuvdata.UVData()
+        model.read(f"{THIS_DIR}/data/test_model_1freq.uvfits")
+        model.select(ant_str="cross")
+        data = model.copy()
         calibration_wrappers.apply_abscal(
             data,
             caldata_obj.abscal_params,
