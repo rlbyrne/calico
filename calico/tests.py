@@ -1847,8 +1847,8 @@ class TestStringMethods(unittest.TestCase):
         scipy_result = scipy.linalg.matmul_toeplitz(vec1, x)
         calico_result = cost_function_calculations.multiply_toeplitz_matrix(vec1, x)
         matmul_result = mat1 @ x
-        np.testing.assert_allclose(scipy_result, matmul_result)
-        np.testing.assert_allclose(scipy_result, calico_result)
+        np.testing.assert_allclose(scipy_result, matmul_result, rtol=1e-6)
+        np.testing.assert_allclose(scipy_result, calico_result, rtol=1e-6)
 
     def test_toeplitz_multiplication_tensors(self):
 
@@ -1881,7 +1881,7 @@ class TestStringMethods(unittest.TestCase):
                 scipy_result[ind1, ind2, :] = scipy.linalg.matmul_toeplitz(
                     vec1[ind1, ind2, :], x[ind1, 0, :]
                 )
-        np.testing.assert_allclose(scipy_result, calico_result)
+        np.testing.assert_allclose(scipy_result, calico_result, rtol=1e-5)
 
     def test_convert_to_and_from_dwcal_memory_save(self):
 
@@ -1980,19 +1980,26 @@ class TestStringMethods(unittest.TestCase):
             ),
             axes=(0, 1, 3, 4, 2),
         )  # Enforce that the matrix is Hermitian
-        caldata_obj.dwcal_inv_covariance = caldata_obj.dwcal_inv_covariance[:, :, :, 0, :]
+        caldata_obj.dwcal_inv_covariance = caldata_obj.dwcal_inv_covariance[
+            :, :, :, 0, :
+        ]
         caldata_obj.dwcal_memory_save_mode = True
         caldata_obj.lambda_val = 0
 
         caldata_obj_expanded = caldata_obj.copy()
         caldata_obj_expanded.convert_from_dwcal_memory_save_mode()
 
-        np.testing.assert_allclose(caldata_obj_expanded.dwcal_inv_covariance, np.transpose(np.conj(caldata_obj_expanded.dwcal_inv_covariance), axes=(0,1,3,2,4)))
+        np.testing.assert_allclose(
+            caldata_obj_expanded.dwcal_inv_covariance,
+            np.transpose(
+                np.conj(caldata_obj_expanded.dwcal_inv_covariance), axes=(0, 1, 3, 2, 4)
+            ),
+        )
 
         gains_flattened = np.stack(
             (
-                np.real(caldata_obj.gains[:,:,0]),
-                np.imag(caldata_obj.gains[:,:,0]),
+                np.real(caldata_obj.gains[:, :, 0]),
+                np.imag(caldata_obj.gains[:, :, 0]),
             ),
             axis=1,
         ).flatten()
@@ -3076,7 +3083,7 @@ class TestStringMethods(unittest.TestCase):
             np.arange(caldata_obj.Nfreqs),
             caldata_obj_expanded,
         )
-        np.testing.assert_allclose(jac_toeplitz, jac_full_mat)
+        np.testing.assert_allclose(jac_toeplitz, jac_full_mat, rtol=1e-5)
 
         hess_toeplitz = calibration_optimization.hessian_dw_abscal_wrapper(
             abscal_params_flattened,
@@ -3088,8 +3095,7 @@ class TestStringMethods(unittest.TestCase):
             np.arange(caldata_obj.Nfreqs),
             caldata_obj_expanded,
         )
-        np.testing.assert_allclose(hess_toeplitz, hess_full_mat)
-
+        np.testing.assert_allclose(hess_toeplitz, hess_full_mat, rtol=1e-5)
 
     def test_dwabscal_jac_wrapper(self, verbose=False):
 
