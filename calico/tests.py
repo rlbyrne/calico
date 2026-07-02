@@ -1328,7 +1328,7 @@ class TestStringMethods(unittest.TestCase):
         data = model.copy()
 
         caldata_obj = caldata.CalData()
-        caldata_obj.load_data(data, model, gain_init_stddev=0.0)
+        caldata_obj.load_data(data.copy(), model.copy(), gain_init_stddev=0.0)
 
         # Unflag all
         caldata_obj.visibility_weights = np.ones(
@@ -1384,7 +1384,7 @@ class TestStringMethods(unittest.TestCase):
         data = model.copy()
 
         caldata_obj = caldata.CalData()
-        caldata_obj.load_data(data, model, gain_init_stddev=0.0)
+        caldata_obj.load_data(data.copy(), model.copy(), gain_init_stddev=0.0)
 
         # Unflag all
         caldata_obj.visibility_weights = np.ones(
@@ -1525,8 +1525,8 @@ class TestStringMethods(unittest.TestCase):
         for gains_multiply_model in [True, False]:
             caldata_obj = caldata.CalData()
             caldata_obj.load_data(
-                data,
-                model,
+                data.copy(),
+                model.copy(),
                 gain_init_calfile=None,
                 gain_init_to_vis_ratio=True,
                 gains_multiply_model=gains_multiply_model,
@@ -1611,8 +1611,8 @@ class TestStringMethods(unittest.TestCase):
         for gains_multiply_model in [True, False]:
             caldata_obj = caldata.CalData()
             caldata_obj.load_data(
-                data,
-                model,
+                data.copy(),
+                model.copy(),
                 gain_init_calfile=None,
                 gain_init_to_vis_ratio=True,
                 gains_multiply_model=gains_multiply_model,
@@ -2011,7 +2011,7 @@ class TestStringMethods(unittest.TestCase):
         )
 
         caldata_obj = caldata.CalData()
-        caldata_obj.load_data(data, model)
+        caldata_obj.load_data(data.copy(), model.copy())
 
         # Unflag all
         caldata_obj.visibility_weights = np.ones(
@@ -2030,10 +2030,6 @@ class TestStringMethods(unittest.TestCase):
             verbose=True,
         )
 
-        model = pyuvdata.UVData()
-        model.read(f"{THIS_DIR}/data/test_model_1freq.uvfits")
-        model.select(ant_str="cross")
-        data = model.copy()
         calibration_wrappers.apply_abscal(
             data,
             caldata_obj.abscal_params,
@@ -2468,7 +2464,7 @@ class TestStringMethods(unittest.TestCase):
             model.fast_concat(model_copy, "freq", inplace=True)
 
         caldata_obj = caldata.CalData()
-        caldata_obj.load_data(data, model)
+        caldata_obj.load_data(data.copy(), model.copy())
 
         caldata_obj.visibility_weights[:, :, :, :] = 1  # Unflag all
         dwcal_inv_covariance = np.identity(data.Nfreqs, dtype=complex)
@@ -2634,7 +2630,7 @@ class TestStringMethods(unittest.TestCase):
             model.fast_concat(model_copy, "freq", inplace=True)
 
         caldata_obj = caldata.CalData()
-        caldata_obj.load_data(data, model)
+        caldata_obj.load_data(data.copy(), model.copy())
 
         caldata_obj.visibility_weights[:, :, :, :] = 1  # Unflag all
         dwcal_inv_covariance = np.identity(data.Nfreqs, dtype=complex)
