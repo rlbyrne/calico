@@ -1937,6 +1937,82 @@ class TestStringMethods(unittest.TestCase):
             caldata_obj.dwcal_inv_covariance,
         )
 
+    def test_dwcal_toeplitz_agreement(self):
+
+        model = pyuvdata.UVData()
+        model.read(f"{THIS_DIR}/data/test_model_1freq.uvfits")
+        data = pyuvdata.UVData()
+        data.read(f"{THIS_DIR}/data/test_data_1freq.uvfits")
+
+        use_Nfreqs = 5
+
+        data_copy = data.copy()
+        model_copy = model.copy()
+        for ind in range(1, use_Nfreqs):
+            data_copy.freq_array += 1e6 * ind
+            model_copy.freq_array += 1e6 * ind
+            data.fast_concat(data_copy, "freq", inplace=True)
+            model.fast_concat(model_copy, "freq", inplace=True)
+
+        caldata_obj = caldata.CalData()
+        caldata_obj.load_data(data, model)
+
+        caldata_obj.visibility_weights[:, :, :, :] = 1  # Unflag all
+        caldata_obj.dwcal_inv_covariance = np.random.rand(
+            caldata_obj.Ntimes,
+            caldata_obj.Nbls,
+            caldata_obj.Nfreqs,
+            caldata_obj.Nfreqs,
+            caldata_obj.N_vis_pols,
+        ) + 1j * np.random.rand(
+            caldata_obj.Ntimes,
+            caldata_obj.Nbls,
+            caldata_obj.Nfreqs,
+            caldata_obj.Nfreqs,
+            caldata_obj.N_vis_pols,
+        )
+        caldata_obj.dwcal_inv_covariance = np.transpose(
+            np.matmul(
+                np.transpose(caldata_obj.dwcal_inv_covariance, axes=(0, 1, 4, 2, 3)),
+                np.conj(
+                    np.transpose(caldata_obj.dwcal_inv_covariance, axes=(0, 1, 4, 3, 2))
+                ),
+            ),
+            axes=(0, 1, 3, 4, 2),
+        )  # Enforce that the matrix is Hermitian
+        caldata_obj.dwcal_inv_covariance = caldata_obj.dwcal_inv_covariance[:, :, :, 0, :]
+        caldata_obj.dwcal_memory_save_mode = True
+        caldata_obj.lambda_val = 0
+
+        caldata_obj_expanded = caldata_obj.copy()
+        caldata_obj_expanded.convert_from_dwcal_memory_save_mode()
+
+        np.testing.assert_allclose(caldata_obj_expanded.dwcal_inv_covariance, np.transpose(np.conj(caldata_obj_expanded.dwcal_inv_covariance), axes=(0,1,3,2,4)))
+
+        gains_flattened = np.stack(
+            (
+                np.real(caldata_obj.gains[:,:,0]),
+                np.imag(caldata_obj.gains[:,:,0]),
+            ),
+            axis=1,
+        ).flatten()
+
+        cost_toeplitz = calibration_optimization.cost_dwcal_wrapper(
+            gains_flattened,
+            caldata_obj,
+            np.arange(caldata_obj.Nants),
+            np.arange(caldata_obj.Nfreqs),
+            0,
+        )
+        cost_full_mat = calibration_optimization.cost_dwcal_wrapper(
+            gains_flattened,
+            caldata_obj_expanded,
+            np.arange(caldata_obj.Nants),
+            np.arange(caldata_obj.Nfreqs),
+            0,
+        )
+        np.testing.assert_allclose(cost_full_mat, cost_toeplitz, rtol=1e-6)
+
     def test_dwcal_identical_data_with_flags(self):
 
         model = pyuvdata.UVData()
@@ -2937,7 +3013,7 @@ class TestStringMethods(unittest.TestCase):
             rtol=1e-7,
         )
 
-    def test_dwabscal_cost_toeplitz_agreement(self):
+    def test_dwabscal_toeplitz_agreement(self):
 
         model = pyuvdata.UVData()
         model.read(f"{THIS_DIR}/data/test_model_1freq.uvfits")
@@ -2989,6 +3065,31 @@ class TestStringMethods(unittest.TestCase):
             caldata_obj_expanded,
         )
         np.testing.assert_allclose(cost_full_mat, cost_toeplitz)
+
+        jac_toeplitz = calibration_optimization.jacobian_dw_abscal_wrapper(
+            abscal_params_flattened,
+            np.arange(caldata_obj.Nfreqs),
+            caldata_obj,
+        )
+        jac_full_mat = calibration_optimization.jacobian_dw_abscal_wrapper(
+            abscal_params_flattened,
+            np.arange(caldata_obj.Nfreqs),
+            caldata_obj_expanded,
+        )
+        np.testing.assert_allclose(jac_toeplitz, jac_full_mat)
+
+        hess_toeplitz = calibration_optimization.hessian_dw_abscal_wrapper(
+            abscal_params_flattened,
+            np.arange(caldata_obj.Nfreqs),
+            caldata_obj,
+        )
+        hess_full_mat = calibration_optimization.hessian_dw_abscal_wrapper(
+            abscal_params_flattened,
+            np.arange(caldata_obj.Nfreqs),
+            caldata_obj_expanded,
+        )
+        np.testing.assert_allclose(hess_toeplitz, hess_full_mat)
+
 
     def test_dwabscal_jac_wrapper(self, verbose=False):
 

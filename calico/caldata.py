@@ -1039,10 +1039,10 @@ class CalData:
             )
             for time_ind in range(self.Ntimes):
                 for bl_ind in range(self.Nbls):
-                    for vis_ind in range(self.N_vis_pols):
-                        dwcal_inv_covariance_new[time_ind, bl_ind, :, :, vis_ind] = (
+                    for pol_ind in range(self.N_vis_pols):
+                        dwcal_inv_covariance_new[time_ind, bl_ind, :, :, pol_ind] = (
                             scipy.linalg.toeplitz(
-                                self.dwcal_inv_covariance[time_ind, bl_ind, :, vis_ind]
+                                self.dwcal_inv_covariance[time_ind, bl_ind, :, pol_ind]
                             )
                         )
             self.dwcal_inv_covariance = dwcal_inv_covariance_new
