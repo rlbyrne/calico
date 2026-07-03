@@ -3,6 +3,8 @@ import sys
 import pyuvdata
 from pyuvdata import UVCal
 from astropy.units import Quantity
+import scipy
+import copy
 from calico import calibration_qa, calibration_optimization
 import multiprocessing
 from numpy.typing import NDArray
@@ -118,6 +120,9 @@ class CalData:
         self.telescope = None
         self.lst = None
         self.lambda_val = None
+
+    def copy(self):
+        return copy.deepcopy(self)
 
     def set_gains_from_calfile(self, calfile: str) -> None:
         """
@@ -956,6 +961,91 @@ class CalData:
                         crosspol_phase_strategy=crosspol_phase_strategy,
                     )
                     self.gains[:, [freq_ind], :] = gains_fit[:, np.newaxis, :]
+
+    def delay_weighted_calibration(
+        self, xtol: float = 1e-5, maxiter: int = 200, verbose: bool = False
+    ) -> None:
+        """
+        Run delay-weighted calibration (DWCal). Updates attribute gains with calibrated values.
+
+        Parameters
+        ----------
+        xtol : float
+            Accuracy tolerance for optimizer. Default 1e-5.
+        maxiter : int
+            Maximum number of iterations for the optimizer. Default 200.
+        verbose : bool
+            Set to True to print optimization outputs. Default False.
+        """
+
+        caldata_list = self.expand_in_polarization()
+        for feed_pol_ind, caldata_per_pol in enumerate(caldata_list):
+            self.gains[:, :, feed_pol_ind] = (
+                calibration_optimization.run_dwcal_optimization_per_pol(
+                    caldata_per_pol,
+                    xtol,
+                    maxiter,
+                    verbose=verbose,
+                )
+            )
+
+    def convert_to_dwcal_memory_save_mode(self, check=True):
+
+        if not self.dwcal_memory_save_mode:
+            if check:
+                check_passed = True
+
+                # Check if Hermitian
+                if not np.allclose(
+                    self.dwcal_inv_covariance,
+                    np.conj(
+                        np.transpose(self.dwcal_inv_covariance, axes=(0, 1, 3, 2, 4))
+                    ),
+                ):
+                    print("ERROR: dwcal_inv_covariance is not Hermitian.")
+                    sys.exit(1)
+
+                # Check if Toeplitz
+                for ind1 in range(1, self.Nfreqs):
+                    for ind2 in range(1, self.Nfreqs):
+                        if not np.allclose(
+                            self.dwcal_inv_covariance[:, :, ind1, ind2, :],
+                            self.dwcal_inv_covariance[:, :, ind1 - 1, ind2 - 1, :],
+                        ):
+                            check_passed = False
+                            break
+                    if not check_passed:
+                        break
+                if not check_passed:
+                    print("ERROR: dwcal_inv_covariance is not Toeplitz.")
+                    sys.exit(1)
+
+            self.dwcal_memory_save_mode = True
+            self.dwcal_inv_covariance = self.dwcal_inv_covariance[:, :, :, 0, :]
+
+    def convert_from_dwcal_memory_save_mode(self):
+
+        if self.dwcal_memory_save_mode:
+            self.dwcal_memory_save_mode = False
+            dwcal_inv_covariance_new = np.zeros(
+                (
+                    self.Ntimes,
+                    self.Nbls,
+                    self.Nfreqs,
+                    self.Nfreqs,
+                    self.N_vis_pols,
+                ),
+                dtype=complex,
+            )
+            for time_ind in range(self.Ntimes):
+                for bl_ind in range(self.Nbls):
+                    for pol_ind in range(self.N_vis_pols):
+                        dwcal_inv_covariance_new[time_ind, bl_ind, :, :, pol_ind] = (
+                            scipy.linalg.toeplitz(
+                                self.dwcal_inv_covariance[time_ind, bl_ind, :, pol_ind]
+                            )
+                        )
+            self.dwcal_inv_covariance = dwcal_inv_covariance_new
 
     def abscal(
         self, xtol: float = 1e-5, maxiter: int = 200, verbose: bool = False

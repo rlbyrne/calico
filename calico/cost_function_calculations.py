@@ -3,6 +3,36 @@ import sys
 from calico import utils
 from numpy.typing import NDArray
 from typing import Tuple
+import jax.numpy as jnp
+import scipy
+
+
+def multiply_toeplitz_matrix(mat_toeplitz, vec, axis=0):
+
+    axis_len = mat_toeplitz.shape[axis]
+
+    mat_toeplitz_expanded = jnp.moveaxis(mat_toeplitz, axis, -1)
+    mat_toeplitz_expanded = jnp.concatenate(
+        [mat_toeplitz_expanded, jnp.conj(mat_toeplitz_expanded[..., 1:][..., ::-1])],
+        axis=-1,
+    )
+
+    vec_expanded = jnp.moveaxis(vec, axis, -1)
+    vec_expanded = jnp.concatenate(
+        [vec_expanded, jnp.zeros_like(vec_expanded[..., 1:][..., ::-1])], axis=-1
+    )
+
+    mat_prod_expanded = jnp.fft.ifft(
+        jnp.fft.fft(mat_toeplitz_expanded, axis=-1) * jnp.fft.fft(vec_expanded, axis=-1),
+        axis=-1,
+    )
+    mat_prod = mat_prod_expanded[..., :axis_len]
+    mat_prod = jnp.moveaxis(mat_prod, -1, axis)
+
+    if jnp.isrealobj(mat_toeplitz) and jnp.isrealobj(vec):
+        mat_prod = mat_prod.real
+
+    return mat_prod
 
 
 def cost_skycal(
@@ -474,6 +504,128 @@ def set_crosspol_phase_pseudoV(
     return crosspol_phase
 
 
+def cost_dwcal(
+    gains: NDArray[np.complexfloating],
+    model_visibilities: NDArray[np.complexfloating],
+    data_visibilities: NDArray[np.complexfloating],
+    visibility_weights: NDArray[np.floating],
+    dwcal_inv_covariance: NDArray[np.complexfloating],
+    ant1_inds: NDArray[np.integer],
+    ant2_inds: NDArray[np.integer],
+    lambda_val: float,
+) -> float:
+    """
+    Calculate the cost function (chi-squared) value.
+
+    Parameters
+    ----------
+    gains : array of complex
+        Shape (Nants, Nfreqs, N_feed_pols).
+    model_visibilities :  array of complex
+        Shape (Ntimes, Nbls, Nfreqs, N_feed_pols). Cross-polarization visibilites are not
+        supported; visibilities should include XX and YY only, ordered to correspond to the
+        gain polarization convention.
+    data_visibilities : array of complex
+        Shape (Ntimes, Nbls, Nfreqs, N_feed_pols). Cross-polarization visibilites are not
+        supported; visibilities should include XX and YY only, ordered to correspond to the
+        gain polarization convention.
+    visibility_weights : array of float
+        Shape (Ntimes, Nbls, Nfreqs, N_feed_pols). Cross-polarization visibilites are not
+        supported; visibilities should include XX and YY only, ordered to correspond to the
+        gain polarization convention.
+    dwcal_inv_covariance : array of complex
+        Shape (Ntimes, Nbls, Nfreqs, Nfreqs, N_feed_pols). Matrix defining frequency-frequency
+        covariances.
+    ant1_inds : array of int
+        Shape (Nbls,).
+    ant2_inds : array of int
+        Shape (Nbls,).
+    lambda_val : float
+        Weight of the phase regularization term; must be positive.
+
+    Returns
+    -------
+    cost : float
+        Value of the cost function.
+    """
+
+    gains_expanded = (gains[ant1_inds, :, :] * jnp.conj(gains[ant2_inds, :, :]))[
+        jnp.newaxis, :, :, :
+    ]
+    res_vec = model_visibilities - gains_expanded * data_visibilities
+    cost = jnp.real(jnp.sum(
+        dwcal_inv_covariance
+        * jnp.conj(res_vec[:, :, :, jnp.newaxis, :])
+        * res_vec[:, :, jnp.newaxis, :, :]
+    ))
+
+    if lambda_val != 0.0:
+        cost += lambda_val * jnp.sum(jnp.sum(jnp.angle(gains), axis=0) ** 2.0)
+
+    return cost
+
+
+def cost_dwcal_toeplitz(
+    gains: NDArray[np.complexfloating],
+    model_visibilities: NDArray[np.complexfloating],
+    data_visibilities: NDArray[np.complexfloating],
+    visibility_weights: NDArray[np.floating],
+    dwcal_inv_covariance: NDArray[np.complexfloating],
+    ant1_inds: NDArray[np.integer],
+    ant2_inds: NDArray[np.integer],
+    lambda_val: float,
+) -> float:
+    """
+    Calculate the cost function (chi-squared) value.
+
+    Parameters
+    ----------
+    gains : array of complex
+        Shape (Nants, Nfreqs, N_feed_pols).
+    model_visibilities :  array of complex
+        Shape (Ntimes, Nbls, Nfreqs, N_feed_pols). Cross-polarization visibilites are not
+        supported; visibilities should include XX and YY only, ordered to correspond to the
+        gain polarization convention.
+    data_visibilities : array of complex
+        Shape (Ntimes, Nbls, Nfreqs, N_feed_pols). Cross-polarization visibilites are not
+        supported; visibilities should include XX and YY only, ordered to correspond to the
+        gain polarization convention.
+    visibility_weights : array of float
+        Shape (Ntimes, Nbls, Nfreqs, N_feed_pols). Cross-polarization visibilites are not
+        supported; visibilities should include XX and YY only, ordered to correspond to the
+        gain polarization convention.
+    dwcal_inv_covariance : array of complex
+        Shape (Ntimes, Nbls, Nfreqs, Nfreqs, N_feed_pols). Matrix defining frequency-frequency
+        covariances.
+    ant1_inds : array of int
+        Shape (Nbls,).
+    ant2_inds : array of int
+        Shape (Nbls,).
+    lambda_val : float
+        Weight of the phase regularization term; must be positive.
+
+    Returns
+    -------
+    cost : float
+        Value of the cost function.
+    """
+
+    gains_expanded = (gains[ant1_inds, :, :] * jnp.conj(gains[ant2_inds, :, :]))[
+        jnp.newaxis, :, :, :
+    ]
+    res_vec = model_visibilities - gains_expanded * data_visibilities
+
+    matmul_toeplitz = multiply_toeplitz_matrix(
+        jnp.conj(dwcal_inv_covariance), jnp.conj(res_vec), axis=2
+    )
+    cost = jnp.real(jnp.sum(matmul_toeplitz * res_vec))
+
+    if lambda_val != 0.0:
+        cost += lambda_val * jnp.sum(jnp.sum(jnp.angle(gains), axis=0) ** 2.0)
+
+    return cost
+
+
 def cost_function_abs_cal(
     amp: float,
     phase_grad: NDArray[float],
@@ -783,13 +935,11 @@ def cost_function_dw_abscal_toeplitz(
         * data_visibilities
         - model_visibilities
     )  # Shape (Ntimes, Nbls, Nfreqs)
-    cost = np.real(
-        np.sum(
-            dwcal_inv_covariance
-            * np.conj(res_vec[:, :, :, np.newaxis])
-            * res_vec[:, :, np.newaxis, :]
-        )
+
+    matmul_toeplitz = multiply_toeplitz_matrix(
+        np.conj(dwcal_inv_covariance), res_vec, axis=2
     )
+    cost = np.real(np.sum(matmul_toeplitz * np.conj(res_vec)))
     print(f"DWAbscal cost: {cost}")
     sys.stdout.flush()
     return cost
@@ -869,6 +1019,84 @@ def jacobian_dw_abscal(
                 * derivative_term[:, :, :, np.newaxis, np.newaxis]
                 * res_vec[:, :, np.newaxis, :, np.newaxis],
                 axis=(0, 1, 3),
+            )
+        )
+    ).T
+    return amp_jac, phase_jac
+
+
+def jacobian_dw_abscal_toeplitz(
+    amp: float,
+    phase_grad: NDArray[float],
+    model_visibilities: NDArray[np.complexfloating],
+    data_visibilities: NDArray[np.complexfloating],
+    uv_array: NDArray[np.floating],
+    visibility_weights: NDArray[np.floating],
+    dwcal_inv_covariance: NDArray[np.complexfloating],
+) -> Tuple[NDArray[np.floating], NDArray[np.floating]]:
+    """
+    Calculate the Jacobian for absolute calibration with delay weighting.
+
+    Parameters
+    ----------
+    amp : array of float
+        Shape (Nfreqs,). Overall visibility amplitude.
+    phase_grad :  array of float
+        Shape (2, Nfreqs,). Phase gradient terms, in units of 1/m.
+    model_visibilities : array of complex
+        Shape (Ntimes, Nbls, Nfreqs,).
+    data_visibilities : array of complex
+        Relatively calibrated data. Shape (Ntimes, Nbls, Nfreqs,).
+    uv_array : array of float
+        Shape(Nbls, 2,)
+    visibility_weights : array of float
+        Shape (Ntimes, Nbls, Nfreqs,).
+    dwcal_inv_covariance : array of complex
+        Shape (Ntimes, Nbls, Nfreqs,).
+
+    Returns
+    -------
+    amp_jac : array of float
+        Derivative of the cost with respect to the visibility amplitude terms. Shape (Nfreqs,).
+    phase_jac : array of float
+        Derivatives of the cost with respect to the phase gradient terms. Shape (2, Nfreqs,).
+
+    """
+
+    phase_term = np.sum(
+        phase_grad[np.newaxis, :, :] * uv_array[:, :, np.newaxis], axis=1
+    )  # Shape (Nbls, Nfreqs,)
+    res_vec = np.sqrt(visibility_weights) * (
+        (amp[np.newaxis, :] ** 2.0 * np.exp(1j * phase_term))[np.newaxis, :, :]
+        * data_visibilities
+        - model_visibilities
+    )  # Shape (Ntimes, Nbls, Nfreqs,)
+    derivative_term = (
+        np.sqrt(visibility_weights)
+        * np.exp(-1j * phase_term)[np.newaxis, :, :]
+        * np.conj(data_visibilities)
+    )
+    matmul_toeplitz = multiply_toeplitz_matrix(dwcal_inv_covariance, res_vec, axis=2)
+    amp_jac = (
+        4
+        * amp
+        * np.real(
+            np.sum(
+                matmul_toeplitz * derivative_term,
+                axis=(0, 1),
+            )
+        )
+    )
+    phase_jac = (
+        2
+        * amp[:, np.newaxis] ** 2.0
+        * np.real(
+            np.sum(
+                (-1j)
+                * uv_array[np.newaxis, :, np.newaxis, :]
+                * derivative_term[:, :, :, np.newaxis]
+                * matmul_toeplitz[:, :, :, np.newaxis],
+                axis=(0, 1),
             )
         )
     ).T
@@ -1086,6 +1314,246 @@ def hess_dw_abscal(
                 * derivative_term[:, :, :, np.newaxis]
                 * res_vec[:, :, np.newaxis, :],
                 axis=(0, 1, 3),
+            )
+        )
+    )
+    hess_phasex_phasex += np.diag(hess_phasex_phasex_diagonal_term)
+    hess_phasey_phasey += np.diag(hess_phasey_phasey_diagonal_term)
+    hess_phasex_phasey += np.diag(hess_phasex_phasey_diagonal_term)
+
+    return (
+        hess_amp_amp,
+        hess_amp_phasex,
+        hess_amp_phasey,
+        hess_phasex_phasex,
+        hess_phasey_phasey,
+        hess_phasex_phasey,
+    )
+
+
+def hess_dw_abscal_toeplitz(
+    amp: float,
+    phase_grad: NDArray[float],
+    model_visibilities: NDArray[np.complexfloating],
+    data_visibilities: NDArray[np.complexfloating],
+    uv_array: NDArray[np.floating],
+    visibility_weights: NDArray[np.floating],
+    dwcal_inv_covariance: NDArray[np.complexfloating],
+) -> Tuple[
+    NDArray[np.floating],
+    NDArray[np.floating],
+    NDArray[np.floating],
+    NDArray[np.floating],
+    NDArray[np.floating],
+    NDArray[np.floating],
+]:
+    """
+    Calculate the Hessian for absolute calibration with delay weighting.
+
+    Parameters
+    ----------
+    amp : array of float
+        Shape (Nfreqs,). Overall visibility amplitude.
+    phase_grad :  array of float
+        Shape (2, Nfreqs,). Phase gradient terms, in units of 1/m.
+    model_visibilities : array of complex
+        Shape (Ntimes, Nbls, Nfreqs,).
+    data_visibilities : array of complex
+        Relatively calibrated data. Shape (Ntimes, Nbls, Nfreqs,).
+    uv_array : array of float
+        Shape(Nbls, 2,)
+    visibility_weights : array of float
+        Shape (Ntimes, Nbls, Nfreqs,).
+    dwcal_inv_covariance : array of complex
+        Shape (Ntimes, Nbls, Nfreqs,).
+
+    Returns
+    hess_amp_amp : array of float
+        Shape (Nfreqs, Nfreqs,). Second derivative of the cost with respect to the
+        amplitude term.
+    hess_amp_phasex : array of float
+        Shape (Nfreqs, Nfreqs,). Second derivative of the cost with respect to the
+        amplitude term and the phase gradient in x.
+    hess_amp_phasey : array of float
+        Shape (Nfreqs, Nfreqs,). Second derivative of the cost with respect to the
+        amplitude term and the phase gradient in y.
+    hess_phasex_phasex : array of float
+        Shape (Nfreqs, Nfreqs,). Second derivative of the cost with respect to the
+        phase gradient in x.
+    hess_phasey_phasey : array of float
+        Shape (Nfreqs, Nfreqs,). Second derivative of the cost with respect to the
+        phase gradient in x.
+    hess_phasex_phasey : array of float
+        Shape (Nfreqs, Nfreqs,). Second derivative of the cost with respect to the
+        phase gradient in x and y.
+    -------
+
+    """
+
+    phase_term = np.sum(
+        phase_grad[np.newaxis, :, :] * uv_array[:, :, np.newaxis], axis=1
+    )  # Shape (Nbls, Nfreqs,)
+    res_vec = np.sqrt(visibility_weights) * (
+        (amp[np.newaxis, :] ** 2.0 * np.exp(1j * phase_term))[np.newaxis, :, :]
+        * data_visibilities
+        - model_visibilities
+    )  # Shape (Ntimes, Nbls, Nfreqs,)
+    derivative_term = (
+        np.sqrt(visibility_weights)
+        * np.exp(-1j * phase_term)[np.newaxis, :, :]
+        * np.conj(data_visibilities)
+    )  # Shape (Ntimes, Nbls, Nfreqs,)
+
+    # Need to expand the dwcal_inv_covariance matrix for certain matrix operations
+    dwcal_inv_covariance_expanded = np.zeros(
+        (
+            np.shape(dwcal_inv_covariance)[0],
+            np.shape(dwcal_inv_covariance)[1],
+            np.shape(dwcal_inv_covariance)[2],
+            np.shape(dwcal_inv_covariance)[2],
+        ),
+        dtype=complex,
+    )
+    for time_ind in range(np.shape(dwcal_inv_covariance)[0]):
+        for bl_ind in range(np.shape(dwcal_inv_covariance)[1]):
+            dwcal_inv_covariance_expanded[time_ind, bl_ind, :, :] = (
+                scipy.linalg.toeplitz(dwcal_inv_covariance[time_ind, bl_ind, :])
+            )
+
+    matmul_toeplitz = multiply_toeplitz_matrix(dwcal_inv_covariance, res_vec, axis=2)
+
+    hess_amp_amp_diagonal_term = 4 * np.real(
+        np.sum(
+            matmul_toeplitz * derivative_term,
+            axis=(0, 1),
+        )
+    )
+    hess_amp_amp = (
+        8
+        * amp[:, np.newaxis]
+        * amp[np.newaxis, :]
+        * np.real(
+            np.sum(
+                dwcal_inv_covariance_expanded
+                * derivative_term[:, :, :, np.newaxis]
+                * np.conj(derivative_term[:, :, np.newaxis, :]),
+                axis=(0, 1),
+            )
+        )
+    ) + np.diag(hess_amp_amp_diagonal_term)
+
+    hess_amp_phase_diagonal_term = (
+        4
+        * amp[:, np.newaxis]
+        * np.real(
+            np.sum(
+                matmul_toeplitz[:, :, :, np.newaxis]
+                * (-1j)
+                * uv_array[np.newaxis, :, np.newaxis, :]
+                * derivative_term[:, :, :, np.newaxis],
+                axis=(0, 1),
+            )
+        )
+    )
+    hess_amp_phase = (
+        4
+        * amp[:, np.newaxis, np.newaxis] ** 2.0
+        * amp[np.newaxis, :, np.newaxis]
+        * np.real(
+            np.sum(
+                dwcal_inv_covariance_expanded[:, :, :, :, np.newaxis]
+                * (-1j)
+                * uv_array[np.newaxis, :, np.newaxis, np.newaxis, :]
+                * derivative_term[:, :, np.newaxis, :, np.newaxis]
+                * np.conj(derivative_term[:, :, :, np.newaxis, np.newaxis]),
+                axis=(0, 1),
+            )
+        )
+    )
+    hess_amp_phasex = hess_amp_phase[:, :, 0] + np.diag(
+        hess_amp_phase_diagonal_term[:, 0]
+    )
+    hess_amp_phasey = hess_amp_phase[:, :, 1] + np.diag(
+        hess_amp_phase_diagonal_term[:, 1]
+    )
+
+    hess_phasex_phasex = (
+        2
+        * amp[:, np.newaxis] ** 2.0
+        * amp[np.newaxis, :] ** 2.0
+        * np.real(
+            np.sum(
+                dwcal_inv_covariance_expanded
+                * uv_array[np.newaxis, :, np.newaxis, np.newaxis, 0] ** 2.0
+                * derivative_term[:, :, np.newaxis, :]
+                * np.conj(derivative_term[:, :, :, np.newaxis]),
+                axis=(0, 1),
+            )
+        )
+    )
+    hess_phasey_phasey = (
+        2
+        * amp[:, np.newaxis] ** 2.0
+        * amp[np.newaxis, :] ** 2.0
+        * np.real(
+            np.sum(
+                dwcal_inv_covariance_expanded
+                * uv_array[np.newaxis, :, np.newaxis, np.newaxis, 1] ** 2.0
+                * derivative_term[:, :, np.newaxis, :]
+                * np.conj(derivative_term[:, :, :, np.newaxis]),
+                axis=(0, 1),
+            )
+        )
+    )
+    hess_phasex_phasey = (
+        2
+        * amp[:, np.newaxis] ** 2.0
+        * amp[np.newaxis, :] ** 2.0
+        * np.real(
+            np.sum(
+                dwcal_inv_covariance_expanded
+                * uv_array[np.newaxis, :, np.newaxis, np.newaxis, 0]
+                * uv_array[np.newaxis, :, np.newaxis, np.newaxis, 1]
+                * derivative_term[:, :, np.newaxis, :]
+                * np.conj(derivative_term[:, :, :, np.newaxis]),
+                axis=(0, 1),
+            )
+        )
+    )
+    hess_phasex_phasex_diagonal_term = (
+        -2
+        * amp**2.0
+        * np.real(
+            np.sum(
+                matmul_toeplitz
+                * uv_array[np.newaxis, :, np.newaxis, 0] ** 2.0
+                * derivative_term,
+                axis=(0, 1),
+            )
+        )
+    )
+    hess_phasey_phasey_diagonal_term = (
+        -2
+        * amp**2.0
+        * np.real(
+            np.sum(
+                matmul_toeplitz
+                * uv_array[np.newaxis, :, np.newaxis, 1] ** 2.0
+                * derivative_term,
+                axis=(0, 1),
+            )
+        )
+    )
+    hess_phasex_phasey_diagonal_term = (
+        -2
+        * amp**2.0
+        * np.real(
+            np.sum(
+                matmul_toeplitz
+                * uv_array[np.newaxis, :, np.newaxis, 0]
+                * uv_array[np.newaxis, :, np.newaxis, 1]
+                * derivative_term,
+                axis=(0, 1),
             )
         )
     )
