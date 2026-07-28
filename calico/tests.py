@@ -1854,8 +1854,8 @@ class TestStringMethods(unittest.TestCase):
         )
         model1.data_array *= random_weights
         model2.data_array *= 1 - random_weights
-        model1.data_array /= gain1
-        model2.data_array /= gain2
+        model1.data_array /= gain1**2
+        model2.data_array /= gain2**2
 
         caldata_obj = caldata.CalData()
         caldata_obj.load_data(
@@ -1867,9 +1867,10 @@ class TestStringMethods(unittest.TestCase):
         )
 
         np.testing.assert_allclose(
-            caldata_obj.model_visibilities[:, :, :, :, 0] * gain1
-            + caldata_obj.model_visibilities[:, :, :, :, 1] * gain2,
+            caldata_obj.model_visibilities[:, :, :, :, 0] * gain1**2
+            + caldata_obj.model_visibilities[:, :, :, :, 1] * gain2**2,
             caldata_obj.data_visibilities,
+            rtol=1e-6,
         )
 
         # Unflag all
@@ -1886,10 +1887,33 @@ class TestStringMethods(unittest.TestCase):
         caldata_obj.visibility_weights[2, 10, 0, :] = 0.0
         caldata_obj.visibility_weights[1, 20, 0, :] = 0.0
 
-        caldata_obj.direction_dependent_calibration(xtol=1e-7, verbose=True)
+        perfect_gains = np.zeros(
+            (
+                caldata_obj.Nants,
+                caldata_obj.Nfreqs,
+                caldata_obj.N_feed_pols,
+                caldata_obj.n_directions,
+            ),
+            dtype=complex,
+        )
+        perfect_gains[:, :, :, 0] = gain1
+        perfect_gains[:, :, :, 1] = gain2
 
-        np.testing.assert_allclose(caldata_obj.gains[:, :, :, 0], gain1)
-        np.testing.assert_allclose(caldata_obj.gains[:, :, :, 1], gain2)
+        cost_perfect_gains = cost_function_calculations.cost_ddcal(
+            perfect_gains,
+            caldata_obj.model_visibilities[:, :, :, 0:2, :],
+            caldata_obj.data_visibilities[:, :, :, 0:2],
+            caldata_obj.visibility_weights[:, :, :, 0:2],
+            caldata_obj.ant1_inds,
+            caldata_obj.ant2_inds,
+            caldata_obj.lambda_val,
+        )
+        np.testing.assert_allclose(cost_perfect_gains, 0, atol=1e-5)
+
+        caldata_obj.direction_dependent_calibration(xtol=1e-7, verbose=False)
+
+        np.testing.assert_allclose(caldata_obj.gains[:, :, :, 0], gain1, rtol=1e-5)
+        np.testing.assert_allclose(caldata_obj.gains[:, :, :, 1], gain2, rtol=1e-5)
 
     ################ DELAY-WEIGHTED CALIBRATION TESTS ################
 
