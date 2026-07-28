@@ -615,22 +615,37 @@ class CalData:
                     dtype=complex,
                 )
             if gain_init_to_vis_ratio:  # Use mean ratio of visibility amplitudes
-                vis_amp_ratio = np.abs(self.model_visibilities) / np.abs(
-                    self.data_visibilities
-                )
-                vis_amp_ratio[np.where(self.data_visibilities == 0.0)] = np.nan
-                for feed_pol_ind, feed_pol in enumerate(self.feed_polarization_array):
-                    vis_pol_ind = np.where(self.vis_polarization_array == feed_pol)[0][
-                        0
-                    ]
-                    if self.gains_multiply_model:
-                        self.gains[:, :, feed_pol_ind] = np.nanmedian(
-                            1 / np.sqrt(vis_amp_ratio[:, :, :, vis_pol_ind])
-                        )
-                    else:
-                        self.gains[:, :, feed_pol_ind] = np.nanmedian(
-                            np.sqrt(vis_amp_ratio[:, :, :, vis_pol_ind])
-                        )
+                if self.n_directions == 1:
+                    vis_amp_ratio = np.abs(self.model_visibilities) / np.abs(
+                        self.data_visibilities
+                    )
+                    vis_amp_ratio[np.where(self.data_visibilities == 0.0)] = np.nan
+                    for feed_pol_ind, feed_pol in enumerate(self.feed_polarization_array):
+                        vis_pol_ind = np.where(self.vis_polarization_array == feed_pol)[0][
+                            0
+                        ]
+                        if self.gains_multiply_model:
+                            self.gains[:, :, feed_pol_ind] = np.nanmedian(
+                                1 / np.sqrt(vis_amp_ratio[:, :, :, vis_pol_ind])
+                            )
+                        else:
+                            self.gains[:, :, feed_pol_ind] = np.nanmedian(
+                                np.sqrt(vis_amp_ratio[:, :, :, vis_pol_ind])
+                            )
+                else:
+                    for direction_ind in range(self.n_directions):
+                        vis_amp_ratio = np.abs(
+                            self.model_visibilities[:, :, :, :, direction_ind]
+                        ) / np.abs(self.data_visibilities)
+                        vis_amp_ratio[np.where(self.data_visibilities == 0.0)] = np.nan
+                        for feed_pol_ind, feed_pol in enumerate(self.feed_polarization_array):
+                            vis_pol_ind = np.where(self.vis_polarization_array == feed_pol)[0][
+                                0
+                            ]
+                            if self.gains_multiply_model:
+                                self.gains[:, :, feed_pol_ind, direction_ind] = np.nanmedian(1 / np.sqrt(vis_amp_ratio[:, :, :, vis_pol_ind]))
+                            else:
+                                self.gains[:, :, feed_pol_ind, direction_ind] = np.nanmedian(np.sqrt(vis_amp_ratio[:, :, :, vis_pol_ind]))
         else:  # Initialize from file
             self.set_gains_from_calfile(gain_init_calfile)
             # Capture nan-ed gains as flags
@@ -975,7 +990,11 @@ class CalData:
             Set to True to print optimization outputs. Default False.
         """
 
-        if np.max(self.visibility_weights) == 0.0:
+        if self.n_directions > 1:
+            print(
+                "ERROR: sky_based_calibration does not support multiple directions. Use direction_dependent_calibration instead."
+            )
+        elif np.max(self.visibility_weights) == 0.0:
             print("ERROR: All data flagged.")
             sys.stdout.flush()
             self.gains[:, :, :] = np.nan + 1j * np.nan
@@ -1023,6 +1042,44 @@ class CalData:
                     )
                     self.gains[:, [freq_ind], :] = gains_fit[:, np.newaxis, :]
 
+    def direction_dependent_calibration(
+        self,
+        xtol: float = 1e-5,
+        maxiter: int = 200,
+        verbose: bool = False,
+    ) -> None:
+        """
+        Run direction-dependent calibration for each polarization and frequency. Updates the
+        gains attribute with calibrated values.
+
+        Parameters
+        ----------
+        xtol : float
+            Accuracy tolerance for optimizer. Default 1e-5.
+        maxiter : int
+            Maximum number of iterations for the optimizer. Default 200.
+        verbose : bool
+            Set to True to print optimization outputs. Default False.
+        """
+
+        if not self.gains_multiply_model:
+            print(
+                "ERROR: gains_multiply_model is False. Direction-dependent calibration requires that gains_multiply_model=True."
+            )
+            sys.exit(1)
+
+        for pol_ind in range(self.N_feed_pols):
+            for freq_ind in range(self.Nfreqs):
+                gains_fit = calibration_optimization.run_ddcal_optimization(
+                    self,
+                    xtol,
+                    maxiter,
+                    freq_ind=freq_ind,
+                    pol_ind=pol_ind,
+                    verbose=verbose,
+                )
+                self.gains[:, freq_ind, pol_ind, :] = gains_fit
+
     def delay_weighted_calibration(
         self, xtol: float = 1e-5, maxiter: int = 200, verbose: bool = False
     ) -> None:
@@ -1038,6 +1095,12 @@ class CalData:
         verbose : bool
             Set to True to print optimization outputs. Default False.
         """
+
+        if self.gains_multiply_model:
+            print(
+                "ERROR: gains_multiply_model is True. Delay-weighted calibration requires that gains_multiply_model=False."
+            )
+            sys.exit(1)
 
         caldata_list = self.expand_in_polarization()
         for feed_pol_ind, caldata_per_pol in enumerate(caldata_list):

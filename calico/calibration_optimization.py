@@ -275,6 +275,67 @@ def hessian_skycal_wrapper(
     return hess_flattened
 
 
+def cost_ddcal_wrapper(
+    gains_flattened: NDArray[np.floating],
+    caldata_obj,
+    ant_inds: NDArray[int],
+    freq_ind: int,
+    vis_pol_ind: int,
+) -> float:
+    """
+    Direction-dependent calibration cost function. Uses the function cost_ddcal.
+    Reformats the input gains to be compatible with the scipy.optimize.minimize function.
+
+    Parameters
+    ----------
+    gains_flattened : array of float
+        Array of gain values. Even indices correspond to the real components of the
+        gains and odd indices correspond to the imaginary components. Shape
+        (2*Nants_unflagged*n_directions,).
+    caldata_obj : CalData
+    ant_inds : array of int
+        Indices of unflagged antennas to be calibrated. Shape (Nants_unflagged,).
+    freq_ind : int
+        Frequency channel index.
+    vis_pol_ind : int
+        Index of the visibility polarization.
+
+    Returns
+    -------
+    cost : float
+        Value of the cost function.
+    """
+
+    gains_reshaped = jnp.reshape(
+        gains_flattened, (len(ant_inds), caldata_obj.n_directions, 2)
+    )
+    gains_reshaped = gains_reshaped[:, :, 0] + 1.0j * gains_reshaped[:, :, 1]
+    gains = jnp.ones((caldata_obj.Nants, caldata_obj.n_directions), dtype=complex)
+    gains = gains.at[jnp.ix_(ant_inds, jnp.arange(caldata_obj.n_directions))].set(
+        gains_reshaped
+    )
+
+    cost = cost_function_calculations.cost_ddcal(
+        gains[:, jnp.newaxis, jnp.newaxis, :],
+        jnp.reshape(
+            caldata_obj.model_visibilities[:, :, freq_ind, vis_pol_ind, :],
+            (caldata_obj.Ntimes, caldata_obj.Nbls, 1, 1, caldata_obj.n_directions),
+        ),
+        jnp.reshape(
+            caldata_obj.data_visibilities[:, :, freq_ind, vis_pol_ind],
+            (caldata_obj.Ntimes, caldata_obj.Nbls, 1, 1),
+        ),
+        jnp.reshape(
+            caldata_obj.visibility_weights[:, :, freq_ind, vis_pol_ind],
+            (caldata_obj.Ntimes, caldata_obj.Nbls, 1, 1),
+        ),
+        caldata_obj.ant1_inds,
+        caldata_obj.ant2_inds,
+        caldata_obj.lambda_val,
+    )
+    return cost
+
+
 def cost_dwcal_wrapper(
     gains_flattened: NDArray[np.floating],
     caldata_obj,
@@ -724,7 +785,9 @@ def run_skycal_optimization_per_pol_single_freq(
         dtype=complex,
     )
     if np.max(caldata_obj.visibility_weights[:, :, freq_ind, :]) == 0.0:
-        print("ERROR: All data flagged.")
+        if verbose:
+            print("WARNING: All data flagged.")
+            sys.stdout.flush()
         gains_fit[:, :] = np.nan + 1j * np.nan
         return gains_fit
 
@@ -775,14 +838,14 @@ def run_skycal_optimization_per_pol_single_freq(
                 print(
                     f"Freq. {freq_ind} Pol. {feed_pol_ind}, optimization time: {(end_optimize - start_optimize)/60.} minutes"
                 )
-            sys.stdout.flush()
+                sys.stdout.flush()
             gains_fit_single_pol = np.reshape(result.x, (len(ant_inds), 2))
             gains_fit[ant_inds, feed_pol_ind] = (
                 gains_fit_single_pol[:, 0] + 1j * gains_fit_single_pol[:, 1]
             )
 
             # Ensure that the phase of the gains is mean-zero
-            # This adds should be handled by the phase regularization term, but
+            # If lambda_val != 0, this should be handled by the phase regularization term, but
             # this step removes any optimizer precision effects.
             avg_angle = np.arctan2(
                 np.nanmean(np.sin(np.angle(gains_fit[:, feed_pol_ind]))),
@@ -841,6 +904,117 @@ def run_skycal_optimization_per_pol_single_freq(
         else:
             gains_fit[:, 0] *= np.exp(-1j * crosspol_phase / 2)
             gains_fit[:, 1] *= np.exp(1j * crosspol_phase / 2)
+
+    return gains_fit
+
+
+def run_ddcal_optimization(
+    caldata_obj,
+    xtol: float,
+    maxiter: int,
+    freq_ind: int = 0,
+    pol_ind: int = 0,
+    verbose: bool = True,
+) -> NDArray[np.complexfloating]:
+    """
+    Run direction-dependent calibration per frequency and polarization.
+
+    Parameters
+    ----------
+    caldata_obj : CalData
+    xtol : float
+        Accuracy tolerance for optimizer.
+    maxiter : int
+        Maximum number of iterations for the optimizer.
+    freq_ind : int
+        Frequency channel to process. Default 0.
+    pol_ind : int
+        Feed polarization index to process. Default 0.
+    verbose : bool
+        Set to True to print optimization outputs. Default True.
+
+    Returns
+    -------
+    gains_fit : array of complex
+        Fit gain values. Shape (Nants, n_direction,).
+    """
+
+    gains_fit = np.full(
+        (caldata_obj.Nants, caldata_obj.n_directions),
+        np.nan + 1j * np.nan,
+        dtype=complex,
+    )
+
+    vis_pol_ind = np.where(
+        caldata_obj.vis_polarization_array
+        == caldata_obj.feed_polarization_array[pol_ind]
+    )[0]
+
+    if (
+        np.max(caldata_obj.visibility_weights[:, :, freq_ind, vis_pol_ind]) == 0.0
+    ):  # All flagged
+        if verbose:
+            print("WARNING: All data flagged.")
+            sys.stdout.flush()
+        gains_fit[...] = np.nan + 1j * np.nan
+        return gains_fit
+
+    vis_weights_summed = np.sum(
+        caldata_obj.visibility_weights[:, :, freq_ind, pol_ind], axis=0
+    )  # Sum over times
+    weight_per_ant = np.bincount(
+        caldata_obj.ant1_inds,
+        weights=vis_weights_summed,
+        minlength=caldata_obj.Nants,
+    ) + np.bincount(
+        caldata_obj.ant2_inds,
+        weights=vis_weights_summed,
+        minlength=caldata_obj.Nants,
+    )
+    ant_inds = np.where(weight_per_ant > 0.0)[0]
+
+    gains_init_flattened = np.stack(
+        (
+            np.real(caldata_obj.gains[ant_inds, freq_ind, pol_ind, :]),
+            np.imag(caldata_obj.gains[ant_inds, freq_ind, pol_ind, :]),
+        ),
+        axis=2,
+    ).flatten()
+
+    # Minimize the cost function
+    start_optimize = time.time()
+    result = scipy.optimize.minimize(
+        cost_ddcal_wrapper,
+        gains_init_flattened,
+        args=(caldata_obj, ant_inds, freq_ind, vis_pol_ind),
+        method="Newton-CG",
+        jac=jax.jacrev(cost_ddcal_wrapper),
+        hess=jax.jacrev(jax.jacrev(cost_ddcal_wrapper)),
+        options={"disp": verbose, "xtol": xtol, "maxiter": maxiter},
+    )
+    end_optimize = time.time()
+    if verbose:
+        print(result.message)
+        print(
+            f"Freq. {freq_ind} Pol. {pol_ind}, optimization time: {(end_optimize - start_optimize)/60.} minutes"
+        )
+        sys.stdout.flush()
+    gains_fit_single_pol = np.reshape(
+        result.x, (len(ant_inds), caldata_obj.n_directions, 2)
+    )
+    gains_fit[ant_inds, :] = (
+        gains_fit_single_pol[:, :, 0] + 1j * gains_fit_single_pol[:, :, 1]
+    )
+
+    # Ensure that the phase of the gains is mean-zero
+    # If lambda_val != 0, this should be handled by the phase regularization term, but
+    # this step removes any optimizer precision effects.
+    for direction_ind in range(caldata_obj.n_directions):
+        avg_angle = np.arctan2(
+            np.nanmean(np.sin(np.angle(gains_fit[:, direction_ind]))),
+            np.nanmean(np.cos(np.angle(gains_fit[:, direction_ind]))),
+        )
+        gains_fit[:, direction_ind] *= np.cos(avg_angle) - 1j * np.sin(avg_angle)
 
     return gains_fit
 

@@ -1837,6 +1837,60 @@ class TestStringMethods(unittest.TestCase):
         np.testing.assert_allclose(hess_real_imag_1step, hess_real_imag_iterated)
         np.testing.assert_allclose(hess_imag_imag_1step, hess_imag_imag_iterated)
 
+    ################ DIRECTION-DEPENDENT CALIBRATION TESTS ################
+
+    def test_ddcal(self):
+
+        gain1 = 0.8
+        gain2 = 1.5
+
+        model1 = pyuvdata.UVData()
+        model1.read(f"{THIS_DIR}/data/test_model_1freq.uvfits")
+        data = model1.copy()
+        model2 = model1.copy()
+
+        random_weights = np.random.uniform(
+            low=0.0, high=1.0, size=np.shape(model1.data_array)
+        )
+        model1.data_array *= random_weights
+        model2.data_array *= 1 - random_weights
+        model1.data_array /= gain1
+        model2.data_array /= gain2
+
+        caldata_obj = caldata.CalData()
+        caldata_obj.load_data(
+            data,
+            model_list=[model1, model2],
+            gain_init_stddev=0.1,
+            lambda_val=0,
+            gains_multiply_model=True,
+        )
+
+        np.testing.assert_allclose(
+            caldata_obj.model_visibilities[:, :, :, :, 0] * gain1
+            + caldata_obj.model_visibilities[:, :, :, :, 1] * gain2,
+            caldata_obj.data_visibilities,
+        )
+
+        # Unflag all
+        caldata_obj.visibility_weights = np.ones(
+            (
+                caldata_obj.Ntimes,
+                caldata_obj.Nbls,
+                caldata_obj.Nfreqs,
+                4,
+            ),
+            dtype=float,
+        )
+        # Set flags
+        caldata_obj.visibility_weights[2, 10, 0, :] = 0.0
+        caldata_obj.visibility_weights[1, 20, 0, :] = 0.0
+
+        caldata_obj.direction_dependent_calibration(xtol=1e-7, verbose=True)
+
+        np.testing.assert_allclose(caldata_obj.gains[:, :, :, 0], gain1)
+        np.testing.assert_allclose(caldata_obj.gains[:, :, :, 1], gain2)
+
     ################ DELAY-WEIGHTED CALIBRATION TESTS ################
 
     def test_toeplitz_multiplication(self):
