@@ -154,10 +154,18 @@ class CalData:
             uvcal.select(jones=self.feed_polarization_array)
         uvcal.reorder_freqs(channel_order="freq")
         uvcal.reorder_jones()
-        use_gains = np.mean(uvcal.gain_array, axis=2)  # Average over times
+        uvcal.gain_array[np.where(uvcal.flag_array)] = np.nan + 1j * np.nan
+        use_gains = np.nanmean(uvcal.gain_array, axis=2)  # Average over times
 
         # Make antenna ordering match
-        cal_ant_names = np.array([uvcal.antenna_names[ant] for ant in uvcal.ant_array])
+        cal_ant_names = np.array(
+            [
+                uvcal.telescope.antenna_names[
+                    np.where(uvcal.telescope.antenna_numbers == ant_num)
+                ]
+                for ant_num in uvcal.ant_array
+            ]
+        )
         cal_ant_inds = np.array(
             [list(cal_ant_names).index(name) for name in self.antenna_names]
         )

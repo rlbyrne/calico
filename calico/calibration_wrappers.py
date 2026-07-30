@@ -287,7 +287,6 @@ def peeling_wrapper(
     data_use_column: str = "DATA",
     model_use_column: str = "MODEL_DATA",
     gain_init_calfile: str | None = None,
-    gains_multiply_model: bool = False,
     gain_init_to_vis_ratio: bool = True,
     gain_init_stddev: float = 0.0,
     N_feed_pols: int | None = None,
@@ -327,9 +326,6 @@ def peeling_wrapper(
         Used only if gain_init_calfile is None. If True, initializes gains
         to the median ratio between the amplitudes of the model and data
         visibilities. If False, the gains are initialized to 1.
-    gains_multiply_model : bool, default=False
-        If True, measurement equation is defined as v_ij ≈ g_i g_j^* m_ij. If
-        False, measurement equation is defined as g_i g_j^* v_ij ≈ m_ij.
     gain_init_stddev : float, default=0.0
         Standard deviation of a random complex Gaussian perturbation to the
         initial gains.
@@ -438,10 +434,10 @@ def peeling_wrapper(
     caldata_obj = caldata.CalData()
     caldata_obj.load_data(
         data=data,
-        model=model,
+        model=model_list,
         gain_init_calfile=gain_init_calfile,
         gain_init_to_vis_ratio=gain_init_to_vis_ratio,
-        gains_multiply_model=gains_multiply_model,
+        gains_multiply_model=True,
         gain_init_stddev=gain_init_stddev,
         check_vis_ordering=check_vis_ordering,
         N_feed_pols=N_feed_pols,

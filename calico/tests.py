@@ -19,6 +19,66 @@ class TestStringMethods(unittest.TestCase):
 
     ################ SKYCAL TESTS ################
 
+    def test_sky_cal_wrapper(self):
+
+        cal_out = calibration_wrappers.sky_based_calibration_wrapper(
+            f"{THIS_DIR}/data/test_data_1freq.uvfits",
+            f"{THIS_DIR}/data/test_model_1freq.uvfits",
+        )
+
+    def test_sky_cal_wrapper_identical_data(self):
+
+        cal_out = calibration_wrappers.sky_based_calibration_wrapper(
+            f"{THIS_DIR}/data/test_model_1freq.uvfits",
+            f"{THIS_DIR}/data/test_model_1freq.uvfits",
+            gain_init_stddev=0.01,
+            xtol=1e-7,
+        )
+        np.testing.assert_allclose(cal_out.gain_array, 1, rtol=1e-5)
+
+    def test_sky_cal_wrapper_uvdata_objs(self):
+
+        model = pyuvdata.UVData()
+        model.read(f"{THIS_DIR}/data/test_model_1freq.uvfits")
+        data = pyuvdata.UVData()
+        data.read(f"{THIS_DIR}/data/test_data_1freq.uvfits")
+        use_Nfreqs = 3
+
+        # Create more frequencies
+        for ind in range(1, use_Nfreqs):
+            data_copy = data.copy()
+            model_copy = model.copy()
+            data_copy.freq_array += np.mean(data_copy.channel_width) * ind
+            model_copy.freq_array += np.mean(model_copy.channel_width) * ind
+            data.fast_concat(data_copy, "freq", inplace=True)
+            model.fast_concat(model_copy, "freq", inplace=True)
+
+        cal_out = calibration_wrappers.sky_based_calibration_wrapper(
+            data,
+            model,
+        )
+
+    def test_sky_cal_wrapper_load_caltable(self):
+
+        model = pyuvdata.UVData()
+        model.read(f"{THIS_DIR}/data/test_model_1freq.uvfits")
+        data = pyuvdata.UVData()
+        data.read(f"{THIS_DIR}/data/test_data_1freq.uvfits")
+        use_Nfreqs = 3
+
+        # Create more frequencies
+        for ind in range(1, use_Nfreqs):
+            data_copy = data.copy()
+            model_copy = model.copy()
+            data_copy.freq_array += np.mean(data_copy.channel_width) * ind
+            model_copy.freq_array += np.mean(model_copy.channel_width) * ind
+            data.fast_concat(data_copy, "freq", inplace=True)
+            model.fast_concat(model_copy, "freq", inplace=True)
+
+        cal_out = calibration_wrappers.sky_based_calibration_wrapper(
+            data, model, gain_init_calfile=f"{THIS_DIR}/data/test_data_3freqs.calfits"
+        )
+
     def test_cost_skycal_with_identical_data(self):
 
         test_freq_ind = 0
@@ -1293,9 +1353,9 @@ class TestStringMethods(unittest.TestCase):
         use_Nfreqs = 3
 
         # Create more frequencies
-        data_copy = data.copy()
-        model_copy = model.copy()
         for ind in range(1, use_Nfreqs):
+            data_copy = data.copy()
+            model_copy = model.copy()
             data_copy.freq_array += 1e6 * ind
             model_copy.freq_array += 1e6 * ind
             data.fast_concat(data_copy, "freq", inplace=True)
