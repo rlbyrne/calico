@@ -558,10 +558,18 @@ class CalData:
                     self.data_visibilities
                 )
                 vis_amp_ratio[np.where(self.data_visibilities == 0.0)] = np.nan
-                if self.gains_multiply_model:
-                    self.gains[:, :, :] = 1 / np.sqrt(np.nanmedian(vis_amp_ratio))
-                else:
-                    self.gains[:, :, :] = np.sqrt(np.nanmedian(vis_amp_ratio))
+                for feed_pol_ind, feed_pol in enumerate(self.feed_polarization_array):
+                    vis_pol_ind = np.where(self.vis_polarization_array == feed_pol)[0][
+                        0
+                    ]
+                    if self.gains_multiply_model:
+                        self.gains[:, :, feed_pol_ind] = np.nanmedian(
+                            1 / np.sqrt(vis_amp_ratio[:, :, :, vis_pol_ind])
+                        )
+                    else:
+                        self.gains[:, :, feed_pol_ind] = np.nanmedian(
+                            np.sqrt(vis_amp_ratio[:, :, :, vis_pol_ind])
+                        )
         else:  # Initialize from file
             self.set_gains_from_calfile(gain_init_calfile)
             # Capture nan-ed gains as flags
