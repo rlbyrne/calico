@@ -19,6 +19,66 @@ class TestStringMethods(unittest.TestCase):
 
     ################ SKYCAL TESTS ################
 
+    def test_sky_cal_wrapper(self):
+
+        cal_out = calibration_wrappers.sky_based_calibration_wrapper(
+            f"{THIS_DIR}/data/test_data_1freq.uvfits",
+            f"{THIS_DIR}/data/test_model_1freq.uvfits",
+        )
+
+    def test_sky_cal_wrapper_identical_data(self):
+
+        cal_out = calibration_wrappers.sky_based_calibration_wrapper(
+            f"{THIS_DIR}/data/test_model_1freq.uvfits",
+            f"{THIS_DIR}/data/test_model_1freq.uvfits",
+            gain_init_stddev=0.01,
+            xtol=1e-7,
+        )
+        np.testing.assert_allclose(cal_out.gain_array, 1, rtol=1e-5)
+
+    def test_sky_cal_wrapper_uvdata_objs(self):
+
+        model = pyuvdata.UVData()
+        model.read(f"{THIS_DIR}/data/test_model_1freq.uvfits")
+        data = pyuvdata.UVData()
+        data.read(f"{THIS_DIR}/data/test_data_1freq.uvfits")
+        use_Nfreqs = 3
+
+        # Create more frequencies
+        for ind in range(1, use_Nfreqs):
+            data_copy = data.copy()
+            model_copy = model.copy()
+            data_copy.freq_array += np.mean(data_copy.channel_width) * ind
+            model_copy.freq_array += np.mean(model_copy.channel_width) * ind
+            data.fast_concat(data_copy, "freq", inplace=True)
+            model.fast_concat(model_copy, "freq", inplace=True)
+
+        cal_out = calibration_wrappers.sky_based_calibration_wrapper(
+            data,
+            model,
+        )
+
+    def test_sky_cal_wrapper_load_caltable(self):
+
+        model = pyuvdata.UVData()
+        model.read(f"{THIS_DIR}/data/test_model_1freq.uvfits")
+        data = pyuvdata.UVData()
+        data.read(f"{THIS_DIR}/data/test_data_1freq.uvfits")
+        use_Nfreqs = 3
+
+        # Create more frequencies
+        for ind in range(1, use_Nfreqs):
+            data_copy = data.copy()
+            model_copy = model.copy()
+            data_copy.freq_array += np.mean(data_copy.channel_width) * ind
+            model_copy.freq_array += np.mean(model_copy.channel_width) * ind
+            data.fast_concat(data_copy, "freq", inplace=True)
+            model.fast_concat(model_copy, "freq", inplace=True)
+
+        cal_out = calibration_wrappers.sky_based_calibration_wrapper(
+            data, model, gain_init_calfile=f"{THIS_DIR}/data/test_data_3freqs.calfits"
+        )
+
     def test_cost_skycal_with_identical_data(self):
 
         test_freq_ind = 0
@@ -1293,9 +1353,9 @@ class TestStringMethods(unittest.TestCase):
         use_Nfreqs = 3
 
         # Create more frequencies
-        data_copy = data.copy()
-        model_copy = model.copy()
         for ind in range(1, use_Nfreqs):
+            data_copy = data.copy()
+            model_copy = model.copy()
             data_copy.freq_array += 1e6 * ind
             model_copy.freq_array += 1e6 * ind
             data.fast_concat(data_copy, "freq", inplace=True)
@@ -1836,6 +1896,84 @@ class TestStringMethods(unittest.TestCase):
         np.testing.assert_allclose(hess_real_real_1step, hess_real_real_iterated)
         np.testing.assert_allclose(hess_real_imag_1step, hess_real_imag_iterated)
         np.testing.assert_allclose(hess_imag_imag_1step, hess_imag_imag_iterated)
+
+    ################ DIRECTION-DEPENDENT CALIBRATION TESTS ################
+
+    def test_ddcal(self):
+
+        gain1 = 0.8
+        gain2 = 1.5
+
+        model1 = pyuvdata.UVData()
+        model1.read(f"{THIS_DIR}/data/test_model_1freq.uvfits")
+        data = model1.copy()
+        model2 = model1.copy()
+
+        random_weights = np.random.uniform(
+            low=0.0, high=1.0, size=np.shape(model1.data_array)
+        )
+        model1.data_array *= random_weights
+        model2.data_array *= 1 - random_weights
+        model1.data_array /= gain1**2
+        model2.data_array /= gain2**2
+
+        caldata_obj = caldata.CalData()
+        caldata_obj.load_data(
+            data,
+            model_list=[model1, model2],
+            gain_init_stddev=0.1,
+            lambda_val=0,
+            gains_multiply_model=True,
+        )
+
+        np.testing.assert_allclose(
+            caldata_obj.model_visibilities[:, :, :, :, 0] * gain1**2
+            + caldata_obj.model_visibilities[:, :, :, :, 1] * gain2**2,
+            caldata_obj.data_visibilities,
+            rtol=1e-6,
+        )
+
+        # Unflag all
+        caldata_obj.visibility_weights = np.ones(
+            (
+                caldata_obj.Ntimes,
+                caldata_obj.Nbls,
+                caldata_obj.Nfreqs,
+                4,
+            ),
+            dtype=float,
+        )
+        # Set flags
+        caldata_obj.visibility_weights[2, 10, 0, :] = 0.0
+        caldata_obj.visibility_weights[1, 20, 0, :] = 0.0
+
+        perfect_gains = np.zeros(
+            (
+                caldata_obj.Nants,
+                caldata_obj.Nfreqs,
+                caldata_obj.N_feed_pols,
+                caldata_obj.n_directions,
+            ),
+            dtype=complex,
+        )
+        perfect_gains[:, :, :, 0] = gain1
+        perfect_gains[:, :, :, 1] = gain2
+
+        cost_perfect_gains = cost_function_calculations.cost_ddcal(
+            perfect_gains,
+            caldata_obj.model_visibilities[:, :, :, 0:2, :],
+            caldata_obj.data_visibilities[:, :, :, 0:2],
+            caldata_obj.visibility_weights[:, :, :, 0:2],
+            caldata_obj.ant1_inds,
+            caldata_obj.ant2_inds,
+            caldata_obj.lambda_val,
+        )
+        np.testing.assert_allclose(cost_perfect_gains, 0, atol=1e-5)
+
+        caldata_obj.direction_dependent_calibration(xtol=1e-7, verbose=False)
+
+        np.testing.assert_allclose(caldata_obj.gains[:, :, :, 0], gain1, rtol=1e-5)
+        np.testing.assert_allclose(caldata_obj.gains[:, :, :, 1], gain2, rtol=1e-5)
 
     ################ DELAY-WEIGHTED CALIBRATION TESTS ################
 

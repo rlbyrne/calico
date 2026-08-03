@@ -23,7 +23,8 @@ def multiply_toeplitz_matrix(mat_toeplitz, vec, axis=0):
     )
 
     mat_prod_expanded = jnp.fft.ifft(
-        jnp.fft.fft(mat_toeplitz_expanded, axis=-1) * jnp.fft.fft(vec_expanded, axis=-1),
+        jnp.fft.fft(mat_toeplitz_expanded, axis=-1)
+        * jnp.fft.fft(vec_expanded, axis=-1),
         axis=-1,
     )
     mat_prod = mat_prod_expanded[..., :axis_len]
@@ -504,6 +505,71 @@ def set_crosspol_phase_pseudoV(
     return crosspol_phase
 
 
+def cost_ddcal(
+    gains: NDArray[np.complexfloating],
+    model_visibilities: NDArray[np.complexfloating],
+    data_visibilities: NDArray[np.complexfloating],
+    visibility_weights: NDArray[np.floating],
+    ant1_inds: NDArray[np.integer],
+    ant2_inds: NDArray[np.integer],
+    lambda_val: float,
+) -> float:
+    """
+    Calculate the cost function (chi-squared) value.
+
+    Parameters
+    ----------
+    gains : array of complex
+        Shape (Nants, Nfreqs, N_feed_pols, n_directions).
+    model_visibilities :  array of complex
+        Shape (Ntimes, Nbls, Nfreqs, N_feed_pols, n_directions). Cross-polarization visibilites are not
+        supported; visibilities should include XX and YY only, ordered to correspond to the
+        gain polarization convention.
+    data_visibilities : array of complex
+        Shape (Ntimes, Nbls, Nfreqs, N_feed_pols). Cross-polarization visibilites are not
+        supported; visibilities should include XX and YY only, ordered to correspond to the
+        gain polarization convention.
+    visibility_weights : array of float
+        Shape (Ntimes, Nbls, Nfreqs, N_feed_pols). Cross-polarization visibilites are not
+        supported; visibilities should include XX and YY only, ordered to correspond to the
+        gain polarization convention.
+    ant1_inds : array of int
+        Shape (Nbls,).
+    ant2_inds : array of int
+        Shape (Nbls,).
+    lambda_val : float
+        Weight of the phase regularization term; must be positive.
+
+    Returns
+    -------
+    cost : float
+        Value of the cost function.
+    """
+
+    n_directions = jnp.shape(gains)[-1]
+    for direction_ind in range(n_directions):
+        gains_expanded = (
+            gains[ant1_inds, :, :, direction_ind]
+            * jnp.conj(gains[ant2_inds, :, :, direction_ind])
+        )[jnp.newaxis, :, :, :]
+        if direction_ind == 0:
+            calibrated_model = (
+                gains_expanded * model_visibilities[:, :, :, :, direction_ind]
+            )
+        else:
+            calibrated_model += (
+                gains_expanded * model_visibilities[:, :, :, :, direction_ind]
+            )
+    res_vec = data_visibilities - calibrated_model
+    cost = jnp.sum(visibility_weights * jnp.abs(res_vec) ** 2)
+
+    if lambda_val > 0:
+        regularization_term = lambda_val * jnp.sum(jnp.angle(gains)) ** 2.0
+        cost += regularization_term
+
+    return cost
+
+
 def cost_dwcal(
     gains: NDArray[np.complexfloating],
     model_visibilities: NDArray[np.complexfloating],
@@ -553,11 +619,13 @@ def cost_dwcal(
         jnp.newaxis, :, :, :
     ]
     res_vec = model_visibilities - gains_expanded * data_visibilities
-    cost = jnp.real(jnp.sum(
-        dwcal_inv_covariance
-        * jnp.conj(res_vec[:, :, :, jnp.newaxis, :])
-        * res_vec[:, :, jnp.newaxis, :, :]
-    ))
+    cost = jnp.real(
+        jnp.sum(
+            dwcal_inv_covariance
+            * jnp.conj(res_vec[:, :, :, jnp.newaxis, :])
+            * res_vec[:, :, jnp.newaxis, :, :]
+        )
+    )
 
     if lambda_val != 0.0:
         cost += lambda_val * jnp.sum(jnp.sum(jnp.angle(gains), axis=0) ** 2.0)

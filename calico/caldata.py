@@ -17,7 +17,8 @@ class CalData:
     Attributes
     -------
     gains : array of complex
-        Shape (Nants, Nfreqs, N_feed_pols,).
+        If n_directions=1, shape (Nants, Nfreqs, N_feed_pols,). Otherwise shape
+        (Nants, Nfreqs, N_feed_pols, n_directions,).
     abscal_params : array of float
         Shape (3, Nfreqs, N_feed_pols). abscal_params[0, :, :] are the overall amplitudes,
         abscal_params[1, :, :] are the x-phase gradients in units 1/m, and abscal_params[2, :, :]
@@ -34,6 +35,8 @@ class CalData:
         Number of gain polarizations.
     N_vis_pols : int
         Number of visibility polarizations.
+    n_directions : int
+        Number of calibration directions.
     feed_polarization_array : array of int
         Shape (N_feed_pols). Array of polarization integers. Indicates the
         ordering of the polarization axis of the gains. X is -5 and Y is -6.
@@ -43,7 +46,8 @@ class CalData:
         data_visibilities, and visibility_weights. XX is -5, YY is -6, XY is -7,
         and YX is -8.
     model_visibilities : array of complex
-        Shape (Ntimes, Nbls, Nfreqs, N_vis_pols,).
+        If n_directions=1, shape (Ntimes, Nbls, Nfreqs, N_vis_pols,). Otherwise shape
+        (Ntimes, Nbls, Nfreqs, N_vis_pols, n_directions,).
     data_visibilities : array of complex
         Shape (Ntimes, Nbls, Nfreqs, N_vis_pols,).
     visibility_weights : array of float
@@ -99,6 +103,7 @@ class CalData:
         self.Nfreqs = 0
         self.N_feed_pols = 0
         self.N_vis_pols = 0
+        self.n_directions = 1
         self.feed_polarization_array = None
         self.vis_polarization_array = None
         self.model_visibilities = None
@@ -149,10 +154,18 @@ class CalData:
             uvcal.select(jones=self.feed_polarization_array)
         uvcal.reorder_freqs(channel_order="freq")
         uvcal.reorder_jones()
-        use_gains = np.mean(uvcal.gain_array, axis=2)  # Average over times
+        uvcal.gain_array[np.where(uvcal.flag_array)] = np.nan + 1j * np.nan
+        use_gains = np.nanmean(uvcal.gain_array, axis=2)  # Average over times
 
         # Make antenna ordering match
-        cal_ant_names = np.array([uvcal.antenna_names[ant] for ant in uvcal.ant_array])
+        cal_ant_names = np.array(
+            [
+                uvcal.telescope.antenna_names[
+                    np.where(uvcal.telescope.antenna_numbers == ant_num)
+                ]
+                for ant_num in uvcal.ant_array
+            ]
+        )
         cal_ant_inds = np.array(
             [list(cal_ant_names).index(name) for name in self.antenna_names]
         )
@@ -169,7 +182,8 @@ class CalData:
     def load_data(
         self,
         data: pyuvdata.UVData,
-        model: pyuvdata.UVData,
+        model: pyuvdata.UVData | None = None,
+        model_list: list[pyuvdata.UVData] | None = None,
         gain_init_calfile: str | None = None,
         gain_init_to_vis_ratio: bool = True,
         gains_multiply_model: bool = False,
@@ -193,9 +207,12 @@ class CalData:
         ----------
         data : pyuvdata UVData object
             Data to be calibrated.
-        model : pyuvdata UVData object
+        model : pyuvdata UVData object or None
             Model visibilities to be used in calibration. Must have the same
-            parameters at data.
+            parameters at data. May be None if model_list is provided.
+        model_list : list of pyuvdata UVData objects or None
+            List of model visibilities to be used for direction-dependent calibration.
+            Must have the same parameters at data. May be None if model is provided.
         gain_init_calfile : str or None
             Default None. If not None, provides a path to a pyuvdata-formatted
             calfits file containing gains values for calibration initialization.
@@ -250,35 +267,43 @@ class CalData:
             Julian Date. Default 1e-5. Used only if check_vis_ordering is True.
         """
 
+        if model_list is not None:
+            self.n_directions = len(model_list)
+        else:
+            self.n_directions = 1
+            model_list = [model]
+
         # Autocorrelations are not currently supported
         data.select(ant_str="cross")
-        model.select(ant_str="cross")
+        for model in model_list:
+            model.select(ant_str="cross")
 
         if check_vis_ordering:
             # Ensure polarizations match
-            if model.Npols > data.Npols:
-                model.select(polarizations=data.polarization_array)
+            for model in model_list:
+                if model.Npols > data.Npols:
+                    model.select(polarizations=data.polarization_array)
 
-            # Ensure times match
-            if (
-                np.max(
-                    np.abs(
-                        np.sort(list(set(data.time_array)))
-                        - np.sort(list(set(model.time_array)))
+                # Ensure times match
+                if (
+                    np.max(
+                        np.abs(
+                            np.sort(list(set(data.time_array)))
+                            - np.sort(list(set(model.time_array)))
+                        )
                     )
-                )
-                > time_match_tol
-            ):
-                print("ERROR: Data and model times do not match. Exiting.")
-                sys.exit(1)
+                    > time_match_tol
+                ):
+                    print("ERROR: Data and model times do not match. Exiting.")
+                    sys.exit(1)
 
-            # Ensure frequencies match
-            if (
-                np.max(np.abs(np.sort(data.freq_array) - np.sort(model.freq_array)))
-                > freq_match_tol
-            ):
-                print("ERROR: Data and model frequencies do not match. Exiting.")
-                sys.exit(1)
+                # Ensure frequencies match
+                if (
+                    np.max(np.abs(np.sort(data.freq_array) - np.sort(model.freq_array)))
+                    > freq_match_tol
+                ):
+                    print("ERROR: Data and model frequencies do not match. Exiting.")
+                    sys.exit(1)
 
         # Downselect baselines
         if (
@@ -316,40 +341,48 @@ class CalData:
             )
             data.select(blt_inds=data_use_baselines)
 
-            model_baseline_lengths_m = np.sqrt(np.sum(model.uvw_array**2.0, axis=1))
-            model_use_baselines = np.where(
-                (model_baseline_lengths_m >= min_cal_baseline_m)
-                & (model_baseline_lengths_m <= max_cal_baseline_m)
-            )
-            model.select(blt_inds=model_use_baselines)
+            for model in model_list:
+                model_baseline_lengths_m = np.sqrt(np.sum(model.uvw_array**2.0, axis=1))
+                model_use_baselines = np.where(
+                    (model_baseline_lengths_m >= min_cal_baseline_m)
+                    & (model_baseline_lengths_m <= max_cal_baseline_m)
+                )
+                model.select(blt_inds=model_use_baselines)
 
         if check_vis_ordering:  # Ensure baselines match
             data.conjugate_bls()
             data.reorder_blts()
-            model.conjugate_bls()
-            model.reorder_blts()
-            if data.Nblts != model.Nblts:
-                select_baselines = True
-            elif (np.max(np.abs(data.ant_1_array - model.ant_1_array)) > 0) or (
-                np.max(np.abs(data.ant_2_array - model.ant_2_array)) > 0
-            ):
+            for model in model_list:
+                model.conjugate_bls()
+                model.reorder_blts()
+
+            n_blts_list = [model.Nblts for model in model_list]
+            n_blts_list.append(data.Nblts)
+            if len(set(n_blts_list)) > 1:
                 select_baselines = True
             else:
                 select_baselines = False
+                for model in model_list:
+                    if (np.max(np.abs(data.ant_1_array - model.ant_1_array)) > 0) or (
+                        np.max(np.abs(data.ant_2_array - model.ant_2_array)) > 0
+                    ):
+                        select_baselines = True
+                        break
+
             if select_baselines:
-                data_baselines = list(set(zip(data.ant_1_array, data.ant_2_array)))
-                model_baselines = list(set(zip(model.ant_1_array, model.ant_2_array)))
-                use_baselines = [
-                    baseline
-                    for baseline in data_baselines
-                    if baseline in model_baselines
+                baselines = [
+                    list(set(zip(model.ant_1_array, model.ant_2_array)))
+                    for model in model_list
                 ]
+                baselines.append(list(set(zip(data.ant_1_array, data.ant_2_array))))
+                use_baselines = set(baselines[0]).intersection(*baselines[1:])
                 if len(use_baselines) < data.Nbls:
                     print(
                         f"WARNING: Model does not contain all baselines. Downselecting from {data.Nbls} to {len(use_baselines)}."
                     )
                 data.select(bls=use_baselines)
-                model.select(bls=use_baselines)
+                for model in model_list:
+                    model.select(bls=use_baselines)
 
         self.Nants = data.Nants_data
         self.Nbls = data.Nbls
@@ -367,68 +400,93 @@ class CalData:
             ),
             dtype=complex,
         )
-        self.model_visibilities = np.zeros(
-            (
-                self.Ntimes,
-                self.Nbls,
-                self.Nfreqs,
-                self.N_vis_pols,
-            ),
-            dtype=complex,
-        )
+        if self.n_directions == 1:
+            self.model_visibilities = np.zeros(
+                (
+                    self.Ntimes,
+                    self.Nbls,
+                    self.Nfreqs,
+                    self.N_vis_pols,
+                ),
+                dtype=complex,
+            )
+        else:
+            self.model_visibilities = np.zeros(
+                (
+                    self.Ntimes,
+                    self.Nbls,
+                    self.Nfreqs,
+                    self.N_vis_pols,
+                    self.n_directions,
+                ),
+                dtype=complex,
+            )
         flag_array = np.zeros(
             (self.Ntimes, self.Nbls, self.Nfreqs, self.N_vis_pols), dtype=bool
         )
+
         for time_ind, time_val in enumerate(np.unique(data.time_array)):
             data_copy = data.select(times=time_val, inplace=False)
-            model_times = list(set(model.time_array))
-            model_copy = model.select(
-                times=model_times[
-                    np.where(
-                        np.abs(model_times - time_val)
-                        == np.min(np.abs(model_times - time_val))
-                    )[0][
-                        0
-                    ]  # Account for times that are close but not exactly equal
-                ],
-                inplace=False,
-            )
             data_copy.reorder_blts()
-            model_copy.reorder_blts()
             data_copy.reorder_pols(order="AIPS")
-            model_copy.reorder_pols(order="AIPS")
             data_copy.reorder_freqs(channel_order="freq")
-            model_copy.reorder_freqs(channel_order="freq")
-
             if time_ind == 0:
                 metadata_reference = data_copy.copy(metadata_only=True)
-            self.model_visibilities[time_ind, :, :, :] = np.reshape(
-                model_copy.data_array,
-                (model_copy.Nblts, model_copy.Nfreqs, model_copy.Npols),
-            )
             self.data_visibilities[time_ind, :, :, :] = np.reshape(
                 data_copy.data_array,
                 (data_copy.Nblts, data_copy.Nfreqs, data_copy.Npols),
             )
-            flag_array[time_ind, :, :, :] = np.max(
-                np.stack(
-                    [
-                        np.reshape(
-                            model_copy.flag_array,
-                            (model_copy.Nblts, model_copy.Nfreqs, model_copy.Npols),
-                        ),
-                        np.reshape(
-                            data_copy.flag_array,
-                            (data_copy.Nblts, data_copy.Nfreqs, data_copy.Npols),
-                        ),
-                    ]
-                ),
-                axis=0,
+            flag_array[time_ind, :, :, :] = np.reshape(
+                data_copy.flag_array,
+                (data_copy.Nblts, data_copy.Nfreqs, data_copy.Npols),
             )
+
+            for model_ind, model in enumerate(model_list):
+                model_times = list(set(model.time_array))
+                model_copy = model.select(
+                    times=model_times[
+                        np.where(
+                            np.abs(model_times - time_val)
+                            == np.min(np.abs(model_times - time_val))
+                        )[0][
+                            0
+                        ]  # Account for times that are close but not exactly equal
+                    ],
+                    inplace=False,
+                )
+                model_copy.reorder_blts()
+                model_copy.reorder_pols(order="AIPS")
+                model_copy.reorder_freqs(channel_order="freq")
+
+                if self.n_directions == 1:
+                    self.model_visibilities[time_ind, :, :, :] = np.reshape(
+                        model_copy.data_array,
+                        (model_copy.Nblts, model_copy.Nfreqs, model_copy.Npols),
+                    )
+                else:
+                    self.model_visibilities[time_ind, :, :, :, model_ind] = np.reshape(
+                        model_copy.data_array,
+                        (model_copy.Nblts, model_copy.Nfreqs, model_copy.Npols),
+                    )
+
+                # Update flag_array if the model contains flags
+                flag_array[time_ind, :, :, :] = np.max(
+                    np.stack(
+                        [
+                            np.reshape(
+                                model_copy.flag_array,
+                                (model_copy.Nblts, model_copy.Nfreqs, model_copy.Npols),
+                            ),
+                            flag_array[time_ind, :, :, :],
+                        ]
+                    ),
+                    axis=0,
+                )
 
         # Free memory
         data.__init__()
-        model.__init__()
+        for model in model_list:
+            model.__init__()
         data_copy = model_copy = None
 
         # Grab other metadata from uvfits
@@ -545,31 +603,69 @@ class CalData:
         # Initialize gains
         self.gains_multiply_model = gains_multiply_model
         if gain_init_calfile is None:
-            self.gains = np.ones(
-                (
-                    self.Nants,
-                    self.Nfreqs,
-                    self.N_feed_pols,
-                ),
-                dtype=complex,
-            )
-            if gain_init_to_vis_ratio:  # Use mean ratio of visibility amplitudes
-                vis_amp_ratio = np.abs(self.model_visibilities) / np.abs(
-                    self.data_visibilities
+            if self.n_directions == 1:
+                self.gains = np.ones(
+                    (
+                        self.Nants,
+                        self.Nfreqs,
+                        self.N_feed_pols,
+                    ),
+                    dtype=complex,
                 )
-                vis_amp_ratio[np.where(self.data_visibilities == 0.0)] = np.nan
-                for feed_pol_ind, feed_pol in enumerate(self.feed_polarization_array):
-                    vis_pol_ind = np.where(self.vis_polarization_array == feed_pol)[0][
-                        0
-                    ]
-                    if self.gains_multiply_model:
-                        self.gains[:, :, feed_pol_ind] = np.nanmedian(
-                            1 / np.sqrt(vis_amp_ratio[:, :, :, vis_pol_ind])
-                        )
-                    else:
-                        self.gains[:, :, feed_pol_ind] = np.nanmedian(
-                            np.sqrt(vis_amp_ratio[:, :, :, vis_pol_ind])
-                        )
+            else:
+                self.gains = np.ones(
+                    (
+                        self.Nants,
+                        self.Nfreqs,
+                        self.N_feed_pols,
+                        self.n_directions,
+                    ),
+                    dtype=complex,
+                )
+            if gain_init_to_vis_ratio:  # Use mean ratio of visibility amplitudes
+                if self.n_directions == 1:
+                    vis_amp_ratio = np.abs(self.model_visibilities) / np.abs(
+                        self.data_visibilities
+                    )
+                    vis_amp_ratio[np.where(self.data_visibilities == 0.0)] = np.nan
+                    for feed_pol_ind, feed_pol in enumerate(
+                        self.feed_polarization_array
+                    ):
+                        vis_pol_ind = np.where(self.vis_polarization_array == feed_pol)[
+                            0
+                        ][0]
+                        if self.gains_multiply_model:
+                            self.gains[:, :, feed_pol_ind] = np.nanmedian(
+                                1 / np.sqrt(vis_amp_ratio[:, :, :, vis_pol_ind])
+                            )
+                        else:
+                            self.gains[:, :, feed_pol_ind] = np.nanmedian(
+                                np.sqrt(vis_amp_ratio[:, :, :, vis_pol_ind])
+                            )
+                else:
+                    for direction_ind in range(self.n_directions):
+                        vis_amp_ratio = np.abs(
+                            self.model_visibilities[:, :, :, :, direction_ind]
+                        ) / np.abs(self.data_visibilities)
+                        vis_amp_ratio[np.where(self.data_visibilities == 0.0)] = np.nan
+                        for feed_pol_ind, feed_pol in enumerate(
+                            self.feed_polarization_array
+                        ):
+                            vis_pol_ind = np.where(
+                                self.vis_polarization_array == feed_pol
+                            )[0][0]
+                            if self.gains_multiply_model:
+                                self.gains[:, :, feed_pol_ind, direction_ind] = (
+                                    np.nanmedian(
+                                        1 / np.sqrt(vis_amp_ratio[:, :, :, vis_pol_ind])
+                                    )
+                                )
+                            else:
+                                self.gains[:, :, feed_pol_ind, direction_ind] = (
+                                    np.nanmedian(
+                                        np.sqrt(vis_amp_ratio[:, :, :, vis_pol_ind])
+                                    )
+                                )
         else:  # Initialize from file
             self.set_gains_from_calfile(gain_init_calfile)
             # Capture nan-ed gains as flags
@@ -621,19 +717,11 @@ class CalData:
             self.gains += np.random.normal(
                 0.0,
                 gain_init_stddev,
-                size=(
-                    self.Nants,
-                    self.Nfreqs,
-                    self.N_feed_pols,
-                ),
+                size=np.shape(self.gains),
             ) + 1.0j * np.random.normal(
                 0.0,
                 gain_init_stddev,
-                size=(
-                    self.Nants,
-                    self.Nfreqs,
-                    self.N_feed_pols,
-                ),
+                size=np.shape(self.gains),
             )
 
         # Initialize abscal parameters
@@ -922,7 +1010,11 @@ class CalData:
             Set to True to print optimization outputs. Default False.
         """
 
-        if np.max(self.visibility_weights) == 0.0:
+        if self.n_directions > 1:
+            print(
+                "ERROR: sky_based_calibration does not support multiple directions. Use direction_dependent_calibration instead."
+            )
+        elif np.max(self.visibility_weights) == 0.0:
             print("ERROR: All data flagged.")
             sys.stdout.flush()
             self.gains[:, :, :] = np.nan + 1j * np.nan
@@ -970,6 +1062,44 @@ class CalData:
                     )
                     self.gains[:, [freq_ind], :] = gains_fit[:, np.newaxis, :]
 
+    def direction_dependent_calibration(
+        self,
+        xtol: float = 1e-5,
+        maxiter: int = 200,
+        verbose: bool = False,
+    ) -> None:
+        """
+        Run direction-dependent calibration for each polarization and frequency. Updates the
+        gains attribute with calibrated values.
+
+        Parameters
+        ----------
+        xtol : float
+            Accuracy tolerance for optimizer. Default 1e-5.
+        maxiter : int
+            Maximum number of iterations for the optimizer. Default 200.
+        verbose : bool
+            Set to True to print optimization outputs. Default False.
+        """
+
+        if not self.gains_multiply_model:
+            print(
+                "ERROR: gains_multiply_model is False. Direction-dependent calibration requires that gains_multiply_model=True."
+            )
+            sys.exit(1)
+
+        for pol_ind in range(self.N_feed_pols):
+            for freq_ind in range(self.Nfreqs):
+                gains_fit = calibration_optimization.run_ddcal_optimization(
+                    self,
+                    xtol,
+                    maxiter,
+                    freq_ind=freq_ind,
+                    pol_ind=pol_ind,
+                    verbose=verbose,
+                )
+                self.gains[:, freq_ind, pol_ind, :] = gains_fit
+
     def delay_weighted_calibration(
         self, xtol: float = 1e-5, maxiter: int = 200, verbose: bool = False
     ) -> None:
@@ -985,6 +1115,12 @@ class CalData:
         verbose : bool
             Set to True to print optimization outputs. Default False.
         """
+
+        if self.gains_multiply_model:
+            print(
+                "ERROR: gains_multiply_model is True. Delay-weighted calibration requires that gains_multiply_model=False."
+            )
+            sys.exit(1)
 
         caldata_list = self.expand_in_polarization()
         for feed_pol_ind, caldata_per_pol in enumerate(caldata_list):
