@@ -6,6 +6,7 @@ from matplotlib.lines import Line2D
 import multiprocessing
 import sys
 from numpy.typing import NDArray
+from matplotlib.backends.backend_pdf import PdfPages
 
 
 def calculate_per_antenna_cost(caldata_obj) -> NDArray[np.floating]:
@@ -85,6 +86,7 @@ def plot_per_ant_cost(
     antenna_names: NDArray[str],
     plot_output_dir: str,
     plot_prefix: str = "",
+    dpi: int = 200,
 ) -> None:
     """
     Plot the per-antenna cost.
@@ -100,6 +102,8 @@ def plot_per_ant_cost(
         Path to the directory where the plots will be saved.
     plot_prefix : str
         Optional string to be appended to the start of the file names.
+    dpi : int
+        Resolution of the output image.
     """
 
     # Format antenna names
@@ -164,7 +168,7 @@ def plot_per_ant_cost(
     plt.tight_layout()
     plt.savefig(
         f"{use_plot_output_dir}/{use_plot_prefix}per_ant_cost.png",
-        dpi=600,
+        dpi=dpi,
     )
     plt.close()
 
@@ -244,6 +248,8 @@ def plot_gains(
     ymax: float | None = None,
     zero_mean_phase: bool = False,
     savefig: bool = True,
+    save_as_pdf: bool = True,
+    dpi: int = 200,
 ) -> None:
     """
     Plot gain values. Creates two set of plots for each the gain amplitudes and
@@ -276,7 +282,12 @@ def plot_gains(
         If True, forces the mean phase of the gains to be zero. This helps compare
         calibration results generated with different reference antennas. Default False.
     savefig : bool
-        If True, save figures as png.
+        If True, save figures.
+    save_as_pdf : bool
+        If True, figures are saved as a pdf. If False, they are saved as a set of pngs.
+        Used only if savefig is True.
+    dpi : int
+        Resolution of the final images. Used only if savefig is True.
     """
 
     cal = get_cal_data(cal, zero_mean_phase=zero_mean_phase)
@@ -397,6 +408,9 @@ def plot_gains(
     if plot_reciprocal:
         cal.gain_array = 1.0 / cal.gain_array
 
+    if save_as_pdf and savefig:
+        pdf = PdfPages(f"{use_plot_output_dir}/{plot_prefix}gains.pdf")
+
     # Plot amplitudes
     if ymax is None:
         ymax = np.nanmean(np.abs(cal.gain_array)) + 3 * np.nanstd(
@@ -466,10 +480,15 @@ def plot_gains(
             )
             plt.tight_layout()
             if savefig:
-                plt.savefig(
-                    f"{use_plot_output_dir}/{plot_prefix}gain_amp_{plot_ind:02d}.png",
-                    dpi=600,
-                )
+                if save_as_pdf:
+                    pdf.savefig(fig, dpi=dpi)
+                    plt.close(fig)
+                else:
+                    plt.savefig(
+                        f"{use_plot_output_dir}/{plot_prefix}gain_amp_{plot_ind:02d}.png",
+                        dpi=dpi,
+                    )
+                    plt.close(fig)
             else:
                 plt.show()
             plt.close()
@@ -539,12 +558,20 @@ def plot_gains(
             )
             plt.tight_layout()
             if savefig:
-                plt.savefig(
-                    f"{use_plot_output_dir}/{plot_prefix}gain_phase_{plot_ind:02d}.png",
-                    dpi=600,
-                )
+                if save_as_pdf:
+                    pdf.savefig(fig, dpi=dpi)
+                    plt.close(fig)
+                else:
+                    plt.savefig(
+                        f"{use_plot_output_dir}/{plot_prefix}gain_phase_{plot_ind:02d}.png",
+                        dpi=dpi,
+                    )
+                    plt.close(fig)
             else:
                 plt.show()
             plt.close()
             subplot_ind = 0
             plot_ind += 1
+
+    if save_as_pdf and savefig:
+        pdf.close()
