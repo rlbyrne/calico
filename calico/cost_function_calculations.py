@@ -513,9 +513,9 @@ def cost_ddcal(
     ant1_inds: NDArray[np.integer],
     ant2_inds: NDArray[np.integer],
     lambda_val: float,
-    ddcal_source_drift_deg: float | None = None,
-    ddcal_source_drift_taper_deg: float | None = None,
-    antenna_positions_topocentric: NDArray[np.floating] | None = None,
+    ddcal_max_source_offset_deg: float | None = None,
+    ddcal_source_offset_taper_deg: float | None = None,
+    antenna_distances: NDArray[np.floating] | None = None,
     freq_array: NDArray[np.floating] | None = None,
     c=3e8,
 ) -> float:
@@ -544,19 +544,19 @@ def cost_ddcal(
         Shape (Nbls,).
     lambda_val : float
         Weight of the phase regularization term; must be positive or zero.
-    ddcal_source_drift_deg : float or None
+    ddcal_max_source_offset_deg : float or None
         Source direction regularization term; defines the distance sources can drift in degrees.
         If None, no direction regularization is applied.
-    ddcal_source_drift_taper_deg : float or None
+    ddcal_source_offset_taper_deg : float or None
         Defines the width of the Tukey taper for the source drift regularization. Used only if
-        ddcal_source_drift_deg is not None.
+        ddcal_max_source_offset_deg is not None.
     antenna_distances : array of float or None
-        Shape (Nants,). Used only if ddcal_source_drift_deg is not None. Antenna distance from the
+        Shape (Nants,). Used only if ddcal_max_source_offset_deg is not None. Antenna distance from the
         array center, in units of meters.
     freq_array : array of float of None
-        Shape (Nfreqs,). Used only if ddcal_source_drift_deg is not None. Frequencies in Hz.
+        Shape (Nfreqs,). Used only if ddcal_max_source_offset_deg is not None. Frequencies in Hz.
     c : float
-        Speed of light in m/s, default 3e8. Used only if ddcal_source_drift_deg is not None.
+        Speed of light in m/s, default 3e8. Used only if ddcal_max_source_offset_deg is not None.
 
     Returns
     -------
@@ -585,7 +585,7 @@ def cost_ddcal(
         regularization_term = lambda_val * jnp.sum(jnp.angle(gains)) ** 2.0
         cost += regularization_term
 
-    if ddcal_source_drift_deg is not None:
+    if ddcal_max_source_offset_deg is not None:
         ant_dist_wls = (
             antenna_distances[:, jnp.newaxis] * freq_array[jnp.newaxis, :] / c
         )
@@ -597,8 +597,8 @@ def cost_ddcal(
         )
         offset_tukey = utils.tukey_taper(
             angle_offset,
-            jnp.deg2rad(ddcal_source_drift_deg),
-            jnp.deg2rad(ddcal_source_drift_taper_deg),
+            jnp.deg2rad(ddcal_max_source_offset_deg),
+            jnp.deg2rad(ddcal_source_offset_taper_deg),
         )
         cost -= jnp.log(jnp.prod(offset_tukey))
 

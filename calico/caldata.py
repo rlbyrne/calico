@@ -76,8 +76,9 @@ class CalData:
         Shape (Nants,). Ordering matches the ordering of the gains attribute.
     antenna_positions : array of float
         Shape (Nants, 3,). Units meters, ITRF frame, relative to telescope location.
-    antenna_positions_topocentric : array of float
-        Shape (Nants, 3,). Units meters, in the topocentric frame (East-North-Up).
+    antenna_distances : array of float
+        Shape (Nants,). Units meters. Planar distance of each antenna from the array center.
+        Ignores up-down distances.
     uv_array : array of float
         Shape (Nbls, 2,). Baseline positions in the UV plane, units meters.
     channel_width : float
@@ -94,10 +95,10 @@ class CalData:
         Local sidereal time (LST), in radians.
     lambda_val : float
         Weight of the phase regularization term; must be positive or zero.
-    ddcal_source_drift_deg : float or None
+    ddcal_max_source_offset_deg : float or None
         Allowable distance that a source is allowed to drift in direction-dependent
         calibration.
-    ddcal_source_drift_taper_deg : float or None
+    ddcal_source_offset_taper_deg : float or None
         Taper on the source drift regularization for direction-dependent calibration.
     """
 
@@ -124,7 +125,7 @@ class CalData:
         self.antenna_names = None
         self.antenna_numbers = None
         self.antenna_positions = None
-        self.antenna_positions_topocentric = None
+        self.antenna_distances = None
         self.uv_array = None
         self.channel_width = None
         self.freq_array = None
@@ -133,8 +134,8 @@ class CalData:
         self.telescope = None
         self.lst = None
         self.lambda_val = None
-        self.ddcal_source_drift_deg = None
-        self.ddcal_source_drift_taper_deg = None
+        self.ddcal_max_source_offset_deg = None
+        self.ddcal_source_offset_taper_deg = None
 
     def copy(self):
         return copy.deepcopy(self)
@@ -206,6 +207,8 @@ class CalData:
         min_cal_baseline_lambda: float | None = None,
         max_cal_baseline_lambda: float | None = None,
         lambda_val: float = 0.0,
+        ddcal_max_source_offset_deg: float | None = None,
+        ddcal_source_offset_taper_deg: float | None = None,
         time_match_tol: float = 1e-5,
         freq_match_tol: float = 1e-5,
     ) -> None:
@@ -269,6 +272,10 @@ class CalData:
         lambda_val : float
             Weight of the phase regularization term; must be positive or zero.
             Default 0.
+        ddcal_max_source_offset_deg : float or None
+            Allowable source offset for direction-dependent calibration, in degrees,
+        ddcal_source_offset_taper_deg : float or None
+            Taper on the source offset regularization for direction-dependent calibration.
         time_match_tol : float
             Tolerance threshold for time agreement between data and model. Units
             Julian Date. Default 1e-5. Used only if check_vis_ordering is True.
@@ -572,13 +579,17 @@ class CalData:
         ).to_value(
             "m"
         )  # Get antennas positions in ECEF
-        self.antenna_positions_topocentric = pyuvdata.utils.ENU_from_ECEF(
+        antenna_positions_topocentric = pyuvdata.utils.ENU_from_ECEF(
             antpos_ecef, center_loc=metadata_reference.telescope.location
         )  # Convert to topocentric (East, North, Up or ENU) coords.
+        self.antenna_distances = np.sqrt(
+            antenna_positions_topocentric[:, 0] ** 2.0
+            + antenna_positions_topocentric[:, 1] ** 2.0
+        )
 
         uvw_array = (
-            self.antenna_positions_topocentric[self.ant1_inds, :]
-            - self.antenna_positions_topocentric[self.ant2_inds, :]
+            antenna_positions_topocentric[self.ant1_inds, :]
+            - antenna_positions_topocentric[self.ant2_inds, :]
         )
         self.uv_array = uvw_array[:, :2]
 
@@ -755,7 +766,10 @@ class CalData:
         if np.max(flag_array):  # Apply flagging
             self.visibility_weights[np.where(flag_array)] = 0.0
 
+        # Regularization terms
         self.lambda_val = lambda_val
+        self.ddcal_max_source_offset_deg = ddcal_max_source_offset_deg
+        self.ddcal_source_offset_taper_deg = ddcal_source_offset_taper_deg
 
     def expand_in_frequency(self) -> list:
         """

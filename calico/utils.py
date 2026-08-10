@@ -80,7 +80,7 @@ def tukey_taper(x, taper_start, taper_width):
         Same shape as x.
     """
 
-    out = 0.5 * np.cos(2 * jnp.pi * (x - taper_start) / taper_width) + 0.5
-    out[np.abs(x) < taper_start] = 1
-    out[np.abs(x) > taper_start + taper_width] = 0
+    out = 0.5 * jnp.cos(2 * jnp.pi * (x - taper_start) / taper_width) + 0.5
+    out = jnp.where(jnp.abs(x) < taper_start, 1.0, out)
+    out = jnp.where(jnp.abs(x) > taper_start + taper_width, 0.0, out)
     return out
