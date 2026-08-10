@@ -513,6 +513,11 @@ def cost_ddcal(
     ant1_inds: NDArray[np.integer],
     ant2_inds: NDArray[np.integer],
     lambda_val: float,
+    ddcal_source_drift_deg: float | None = None,
+    ddcal_source_drift_taper_deg: float | None = None,
+    antenna_positions_topocentric: NDArray[np.floating] | None = None,
+    freq_array: NDArray[np.floating] | None = None,
+    c=3e8,
 ) -> float:
     """
     Calculate the cost function (chi-squared) value.
@@ -538,7 +543,20 @@ def cost_ddcal(
     ant2_inds : array of int
         Shape (Nbls,).
     lambda_val : float
-        Weight of the phase regularization term; must be positive.
+        Weight of the phase regularization term; must be positive or zero.
+    ddcal_source_drift_deg : float or None
+        Source direction regularization term; defines the distance sources can drift in degrees.
+        If None, no direction regularization is applied.
+    ddcal_source_drift_taper_deg : float or None
+        Defines the width of the Tukey taper for the source drift regularization. Used only if
+        ddcal_source_drift_deg is not None.
+    antenna_distances : array of float or None
+        Shape (Nants,). Used only if ddcal_source_drift_deg is not None. Antenna distance from the
+        array center, in units of meters.
+    freq_array : array of float of None
+        Shape (Nfreqs,). Used only if ddcal_source_drift_deg is not None. Frequencies in Hz.
+    c : float
+        Speed of light in m/s, default 3e8. Used only if ddcal_source_drift_deg is not None.
 
     Returns
     -------
@@ -566,6 +584,23 @@ def cost_ddcal(
     if lambda_val > 0:
         regularization_term = lambda_val * jnp.sum(jnp.angle(gains)) ** 2.0
         cost += regularization_term
+
+    if ddcal_source_drift_deg is not None:
+        ant_dist_wls = (
+            antenna_distances[:, jnp.newaxis] * freq_array[jnp.newaxis, :] / c
+        )
+        angle_offset = jnp.abs(
+            jnp.arcsin(
+                jnp.angle(gains)
+                / (2 * jnp.pi * ant_dist_wls[:, :, jnp.newaxis, jnp.newaxis])
+            )
+        )
+        offset_tukey = utils.tukey_taper(
+            angle_offset,
+            jnp.deg2rad(ddcal_source_drift_deg),
+            jnp.deg2rad(ddcal_source_drift_taper_deg),
+        )
+        cost -= jnp.log(jnp.prod(offset_tukey))
 
     return cost
 

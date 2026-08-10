@@ -75,7 +75,9 @@ class CalData:
     antenna_numbers : array of int
         Shape (Nants,). Ordering matches the ordering of the gains attribute.
     antenna_positions : array of float
-        Shape (Nants, 3,). Units meters, relative to telescope location.
+        Shape (Nants, 3,). Units meters, ITRF frame, relative to telescope location.
+    antenna_positions_topocentric : array of float
+        Shape (Nants, 3,). Units meters, in the topocentric frame (East-North-Up).
     uv_array : array of float
         Shape (Nbls, 2,). Baseline positions in the UV plane, units meters.
     channel_width : float
@@ -92,6 +94,11 @@ class CalData:
         Local sidereal time (LST), in radians.
     lambda_val : float
         Weight of the phase regularization term; must be positive or zero.
+    ddcal_source_drift_deg : float or None
+        Allowable distance that a source is allowed to drift in direction-dependent
+        calibration.
+    ddcal_source_drift_taper_deg : float or None
+        Taper on the source drift regularization for direction-dependent calibration.
     """
 
     def __init__(self):
@@ -117,6 +124,7 @@ class CalData:
         self.antenna_names = None
         self.antenna_numbers = None
         self.antenna_positions = None
+        self.antenna_positions_topocentric = None
         self.uv_array = None
         self.channel_width = None
         self.freq_array = None
@@ -125,6 +133,8 @@ class CalData:
         self.telescope = None
         self.lst = None
         self.lambda_val = None
+        self.ddcal_source_drift_deg = None
+        self.ddcal_source_drift_taper_deg = None
 
     def copy(self):
         return copy.deepcopy(self)
@@ -562,10 +572,14 @@ class CalData:
         ).to_value(
             "m"
         )  # Get antennas positions in ECEF
-        antpos_enu = pyuvdata.utils.ENU_from_ECEF(
+        self.antenna_positions_topocentric = pyuvdata.utils.ENU_from_ECEF(
             antpos_ecef, center_loc=metadata_reference.telescope.location
         )  # Convert to topocentric (East, North, Up or ENU) coords.
-        uvw_array = antpos_enu[self.ant1_inds, :] - antpos_enu[self.ant2_inds, :]
+
+        uvw_array = (
+            self.antenna_positions_topocentric[self.ant1_inds, :]
+            - self.antenna_positions_topocentric[self.ant2_inds, :]
+        )
         self.uv_array = uvw_array[:, :2]
 
         # Get polarization ordering
