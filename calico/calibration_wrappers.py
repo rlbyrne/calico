@@ -295,6 +295,8 @@ def peeling_wrapper(
     max_cal_baseline_m: float | None = None,
     min_cal_baseline_lambda: float | None = None,
     max_cal_baseline_lambda: float | None = None,
+    max_source_offset_deg: float | None = None,
+    source_offset_taper_deg: float | None = None,
     lambda_val: float = 0.0,
     xtol: float = 1e-5,
     maxiter: int = 200,
@@ -352,6 +354,10 @@ def peeling_wrapper(
         Maximum baseline length, in wavelengths, to use in calibration. If
         both max_cal_baseline_m and max_cal_baseline_lambda are None,
         arbitrarily long baselines are used.
+    max_source_offset_deg : float, optional, default=None
+        Maximum allowable source offset in direction-dependent calibration.
+    source_offset_taper_deg : float, optional, default=None
+        Taper on the allowable source offset regularization.
     lambda_val : float, default=0.0
         Weight of the phase regularization term; must be positive or 0.
     xtol : float, default=1e-5
@@ -447,6 +453,8 @@ def peeling_wrapper(
         min_cal_baseline_lambda=min_cal_baseline_lambda,
         max_cal_baseline_lambda=max_cal_baseline_lambda,
         lambda_val=lambda_val,
+        ddcal_max_source_offset_deg=max_source_offset_deg,
+        ddcal_source_offset_taper_deg=source_offset_taper_deg,
     )
 
     if verbose:

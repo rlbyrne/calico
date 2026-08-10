@@ -315,6 +315,13 @@ def cost_ddcal_wrapper(
         gains_reshaped
     )
 
+    if caldata_obj.ddcal_max_source_offset_deg is not None:
+        use_antenna_distances = caldata_obj.antenna_distances[ant_inds]
+        use_freq_array = caldata_obj.freq_array[[freq_ind]]
+    else:
+        use_antenna_distances = None
+        use_freq_array = None
+
     cost = cost_function_calculations.cost_ddcal(
         gains[:, jnp.newaxis, jnp.newaxis, :],
         jnp.reshape(
@@ -332,6 +339,10 @@ def cost_ddcal_wrapper(
         caldata_obj.ant1_inds,
         caldata_obj.ant2_inds,
         caldata_obj.lambda_val,
+        caldata_obj.ddcal_max_source_offset_deg,
+        caldata_obj.ddcal_source_offset_taper_deg,
+        use_antenna_distances,
+        use_freq_array,
     )
     return cost
 

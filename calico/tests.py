@@ -1975,6 +1975,54 @@ class TestStringMethods(unittest.TestCase):
         np.testing.assert_allclose(caldata_obj.gains[:, :, :, 0], gain1, rtol=1e-5)
         np.testing.assert_allclose(caldata_obj.gains[:, :, :, 1], gain2, rtol=1e-5)
 
+    def test_ddcal_source_offset_regularized(self):
+
+        gain1 = 0.8
+        gain2 = 1.5
+
+        model1 = pyuvdata.UVData()
+        model1.read(f"{THIS_DIR}/data/test_model_1freq.uvfits")
+        data = model1.copy()
+        model2 = model1.copy()
+
+        random_weights = np.random.uniform(
+            low=0.0, high=1.0, size=np.shape(model1.data_array)
+        )
+        model1.data_array *= random_weights
+        model2.data_array *= 1 - random_weights
+        model1.data_array /= gain1**2
+        model2.data_array /= gain2**2
+
+        caldata_obj = caldata.CalData()
+        caldata_obj.load_data(
+            data,
+            model_list=[model1, model2],
+            gain_init_stddev=0.1,
+            lambda_val=0,
+            gains_multiply_model=True,
+            ddcal_max_source_offset_deg=1,
+            ddcal_source_offset_taper_deg=0.1,
+        )
+
+        # Unflag all
+        caldata_obj.visibility_weights = np.ones(
+            (
+                caldata_obj.Ntimes,
+                caldata_obj.Nbls,
+                caldata_obj.Nfreqs,
+                4,
+            ),
+            dtype=float,
+        )
+        # Set flags
+        caldata_obj.visibility_weights[2, 10, 0, :] = 0.0
+        caldata_obj.visibility_weights[1, 20, 0, :] = 0.0
+
+        caldata_obj.direction_dependent_calibration(xtol=1e-7, verbose=False)
+
+        np.testing.assert_allclose(caldata_obj.gains[:, :, :, 0], gain1, rtol=1e-5)
+        np.testing.assert_allclose(caldata_obj.gains[:, :, :, 1], gain2, rtol=1e-5)
+
     ################ DELAY-WEIGHTED CALIBRATION TESTS ################
 
     def test_toeplitz_multiplication(self):

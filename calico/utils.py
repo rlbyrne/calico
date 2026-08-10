@@ -1,4 +1,5 @@
 import numpy as np
+import jax.numpy as jnp
 
 
 def bincount_multidim(x, weights=None, minlength=0, axis=0):
@@ -61,3 +62,25 @@ def bincount_multidim(x, weights=None, minlength=0, axis=0):
             return out_list[0]
         else:
             return out_list[0] + 1j * out_list[1]
+
+
+def tukey_taper(x, taper_start, taper_width):
+    """
+    Parameters
+    ----------
+    x : array of float
+    taper_start :  float
+        Value correponding to the center of the taper.
+    taper_width : float
+        Width of the taper.
+
+    Returns
+    -------
+    out : array of float
+        Same shape as x.
+    """
+
+    out = 0.5 * jnp.cos(2 * jnp.pi * (x - taper_start) / taper_width) + 0.5
+    out = jnp.where(jnp.abs(x) < taper_start, 1.0, out)
+    out = jnp.where(jnp.abs(x) > taper_start + taper_width, 0.0, out)
+    return out
