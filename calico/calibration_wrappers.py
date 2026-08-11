@@ -135,14 +135,6 @@ def sky_based_calibration_wrapper(
 
     start_time = time.time()
 
-    if parallel:  # Start multiprocessing pool
-        if max_processes is None:
-            pool = multiprocessing.Pool()
-        else:
-            pool = multiprocessing.Pool(processes=max_processes)
-    else:
-        pool = None
-
     if verbose:
         data_read_start_time = time.time()
 
@@ -214,9 +206,6 @@ def sky_based_calibration_wrapper(
 
     if caldata_obj.Nfreqs < 2:  # Do not parallelize
         parallel = False
-        if pool is not None:
-            pool.terminate()
-        pool = None
 
     if verbose:
         print(
@@ -233,7 +222,6 @@ def sky_based_calibration_wrapper(
             get_crosspol_phase=False,  # No crosspol phase needed for antenna flagging
             parallel=parallel,
             verbose=verbose,
-            pool=pool,
         )
         if verbose:
             print(
@@ -255,16 +243,12 @@ def sky_based_calibration_wrapper(
         crosspol_phase_strategy=crosspol_phase_strategy,
         parallel=parallel,
         verbose=verbose,
-        pool=pool,
     )
     if verbose:
         print(
             f"Done. Optimization time: {caldata_obj.Nfreqs} frequency channels in {(time.time() - optimization_start_time)/60.} minutes"
         )
         sys.stdout.flush()
-
-    if parallel:
-        pool.terminate()
 
     # Convert to UVCal object
     uvcal = caldata_obj.convert_to_uvcal()
@@ -472,16 +456,12 @@ def peeling_wrapper(
         crosspol_phase_strategy=crosspol_phase_strategy,
         parallel=parallel,
         verbose=verbose,
-        pool=pool,
     )
     if verbose:
         print(
             f"Done. Optimization time: {caldata_obj.Nfreqs} frequency channels in {(time.time() - optimization_start_time)/60.} minutes"
         )
         sys.stdout.flush()
-
-    if parallel:
-        pool.terminate()
 
     # Convert to UVCal object
     uvcal = caldata_obj.convert_to_uvcal()
@@ -691,7 +671,6 @@ def delay_weighted_calibration_wrapper(
         crosspol_phase_strategy=crosspol_phase_strategy,
         parallel=parallel,
         verbose=verbose,
-        pool=pool,
     )
     if verbose:
         print(
