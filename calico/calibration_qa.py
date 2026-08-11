@@ -3,7 +3,6 @@ import pyuvdata
 from calico import cost_function_calculations
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
-import sys
 from numpy.typing import NDArray
 from matplotlib.backends.backend_pdf import PdfPages
 
