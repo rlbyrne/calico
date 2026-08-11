@@ -3,7 +3,6 @@ from numpy.typing import NDArray
 import sys
 import time
 import pyuvdata
-import multiprocessing
 from calico import caldata
 from pyuvdata import UVData, UVCal
 
@@ -31,7 +30,7 @@ def sky_based_calibration_wrapper(
     antenna_flagging_iterations: int = 1,
     antenna_flagging_threshold: float = 2.5,
     parallel: bool = True,
-    max_processes: int | None = 40,
+    n_workers: int | None = 40,
     verbose: bool = False,
     log_file_path: str | None = None,
 ) -> UVCal:
@@ -114,7 +113,7 @@ def sky_based_calibration_wrapper(
     parallel : bool
         Set to True to parallelize across frequency with multiprocessing.
         Default True if Nfreqs > 1.
-    max_processes : int, optional, default=40
+    n_workers : int, optional, default=40
         Maximum number of multithreaded processes to use. Applicable only if
         parallel is True. If None, uses the multiprocessing default.
     verbose : bool, default=False
@@ -221,6 +220,7 @@ def sky_based_calibration_wrapper(
             maxiter=int(maxiter / 2),  # Lower maxiter for antenna flagging
             get_crosspol_phase=False,  # No crosspol phase needed for antenna flagging
             parallel=parallel,
+            n_workers=n_workers,
             verbose=verbose,
         )
         if verbose:
@@ -242,6 +242,7 @@ def sky_based_calibration_wrapper(
         get_crosspol_phase=get_crosspol_phase,
         crosspol_phase_strategy=crosspol_phase_strategy,
         parallel=parallel,
+        n_workers=n_workers,
         verbose=verbose,
     )
     if verbose:

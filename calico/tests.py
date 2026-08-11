@@ -58,6 +58,29 @@ class TestStringMethods(unittest.TestCase):
             model,
         )
 
+    def test_sky_cal_wrapper_parallel(self):
+
+        model = pyuvdata.UVData()
+        model.read(f"{THIS_DIR}/data/test_model_1freq.uvfits")
+        data = pyuvdata.UVData()
+        data.read(f"{THIS_DIR}/data/test_data_1freq.uvfits")
+        use_Nfreqs = 3
+
+        # Create more frequencies
+        for ind in range(1, use_Nfreqs):
+            data_copy = data.copy()
+            model_copy = model.copy()
+            data_copy.freq_array += np.mean(data_copy.channel_width) * ind
+            model_copy.freq_array += np.mean(model_copy.channel_width) * ind
+            data.fast_concat(data_copy, "freq", inplace=True)
+            model.fast_concat(model_copy, "freq", inplace=True)
+
+        cal_out = calibration_wrappers.sky_based_calibration_wrapper(
+            data,
+            model,
+            parallel=True,
+        )
+
     def test_sky_cal_wrapper_load_caltable(self):
 
         model = pyuvdata.UVData()
@@ -1377,7 +1400,7 @@ class TestStringMethods(unittest.TestCase):
 
         per_ant_cost = calibration_qa.calculate_per_antenna_cost(caldata_obj)
         # per_ant_cost_parallelized = calibration_qa.calculate_per_antenna_cost(
-        #    caldata_obj, parallel=True, max_processes=10
+        #    caldata_obj, parallel=True, n_workers=10
         # )
 
         np.testing.assert_allclose(per_ant_cost, np.zeros_like(per_ant_cost), atol=1e-8)
@@ -3251,11 +3274,13 @@ class TestStringMethods(unittest.TestCase):
             abscal_params_flattened,
             np.arange(caldata_obj.Nfreqs),
             caldata_obj,
+            0,
         )
         cost_full_mat = calibration_optimization.cost_dw_abscal_wrapper(
             abscal_params_flattened,
             np.arange(caldata_obj.Nfreqs),
             caldata_obj_expanded,
+            0,
         )
         np.testing.assert_allclose(cost_full_mat, cost_toeplitz)
 
@@ -3263,11 +3288,13 @@ class TestStringMethods(unittest.TestCase):
             abscal_params_flattened,
             np.arange(caldata_obj.Nfreqs),
             caldata_obj,
+            0,
         )
         jac_full_mat = calibration_optimization.jacobian_dw_abscal_wrapper(
             abscal_params_flattened,
             np.arange(caldata_obj.Nfreqs),
             caldata_obj_expanded,
+            0,
         )
         np.testing.assert_allclose(jac_toeplitz, jac_full_mat, rtol=1e-5)
 
@@ -3275,11 +3302,13 @@ class TestStringMethods(unittest.TestCase):
             abscal_params_flattened,
             np.arange(caldata_obj.Nfreqs),
             caldata_obj,
+            0,
         )
         hess_full_mat = calibration_optimization.hessian_dw_abscal_wrapper(
             abscal_params_flattened,
             np.arange(caldata_obj.Nfreqs),
             caldata_obj_expanded,
+            0,
         )
         np.testing.assert_allclose(hess_toeplitz, hess_full_mat, rtol=1e-5)
 
@@ -3346,16 +3375,16 @@ class TestStringMethods(unittest.TestCase):
         use_params_1 = np.copy(abscal_params_flattened)
         use_params_1[test_parameter_ind] += delta_val / 2
         cost1 = calibration_optimization.cost_dw_abscal_wrapper(
-            use_params_1, unflagged_freq_inds, caldata_obj
+            use_params_1, unflagged_freq_inds, caldata_obj, 0
         )
         use_params_0 = np.copy(abscal_params_flattened)
         use_params_0[test_parameter_ind] -= delta_val / 2
         cost0 = calibration_optimization.cost_dw_abscal_wrapper(
-            use_params_0, unflagged_freq_inds, caldata_obj
+            use_params_0, unflagged_freq_inds, caldata_obj, 0
         )
 
         jac = calibration_optimization.jacobian_dw_abscal_wrapper(
-            abscal_params_flattened, unflagged_freq_inds, caldata_obj
+            abscal_params_flattened, unflagged_freq_inds, caldata_obj, 0
         )
 
         grad_approx = (cost1 - cost0) / delta_val
@@ -3424,7 +3453,10 @@ class TestStringMethods(unittest.TestCase):
         ].flatten()
 
         hess = calibration_optimization.hessian_dw_abscal_wrapper(
-            abscal_params_flattened, unflagged_freq_inds, caldata_obj
+            abscal_params_flattened,
+            unflagged_freq_inds,
+            caldata_obj,
+            0,
         )
         np.testing.assert_allclose(
             hess, hess.T, rtol=1e-8
@@ -3434,12 +3466,12 @@ class TestStringMethods(unittest.TestCase):
             use_params_1 = np.copy(abscal_params_flattened)
             use_params_1[test_parameter_ind] += delta_val / 2
             jac1 = calibration_optimization.jacobian_dw_abscal_wrapper(
-                use_params_1, unflagged_freq_inds, caldata_obj
+                use_params_1, unflagged_freq_inds, caldata_obj, 0
             )
             use_params_0 = np.copy(abscal_params_flattened)
             use_params_0[test_parameter_ind] -= delta_val / 2
             jac0 = calibration_optimization.jacobian_dw_abscal_wrapper(
-                use_params_0, unflagged_freq_inds, caldata_obj
+                use_params_0, unflagged_freq_inds, caldata_obj, 0
             )
 
             hess_approx = (jac1 - jac0) / delta_val

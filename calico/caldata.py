@@ -902,7 +902,7 @@ class CalData:
         get_crosspol_phase: bool = True,
         crosspol_phase_strategy: str = "crosspol model",
         parallel: bool = False,
-        max_processes: int | None = 40,
+        n_workers: int | None = 40,
         verbose: bool = False,
     ) -> None:
         """
@@ -926,7 +926,7 @@ class CalData:
             crosspol phase by minimizing pseudo Stokes V. Default "crosspol model".
         parallel : bool
             Set to True to parallelize across frequency with multiprocessing. Default False.
-        max_processes : int
+        n_workers : int
             Maximum number of multithreaded processes to use. Applicable only if
             parallel is True. If None, uses the multiprocessing default. Default 40.
         verbose : bool
@@ -936,7 +936,7 @@ class CalData:
         ------
         ValueError
             If inputs are invalid (n_directions>1, non-positive xtol or maxiter, invalid
-            crosspol_phase_strategy, or max_processes < 1).
+            crosspol_phase_strategy, or n_workers < 1).
         """
 
         if self.n_directions > 1:
@@ -956,9 +956,9 @@ class CalData:
                 f"crosspol_phase_strategy must be one of "
                 f"['crosspol model', 'pseudo Stokes V'], got {crosspol_phase_strategy!r}."
             )
-        if parallel and max_processes is not None and max_processes < 1:
+        if parallel and n_workers is not None and n_workers < 1:
             raise ValueError(
-                f"max_processes must be a positive integer or None, got {max_processes}."
+                f"n_workers must be a positive integer or None, got {n_workers}."
             )
         if self.Nfreqs < 1:
             raise ValueError(f"self.Nfreqs must be positive, got {self.Nfreqs}.")
@@ -972,7 +972,7 @@ class CalData:
             return
 
         if parallel:
-            n_workers = min(self.Nfreqs, max_processes)
+            n_workers = min(self.Nfreqs, n_workers)
             ctx = multiprocessing.get_context("fork")
             task_args = [
                 (
