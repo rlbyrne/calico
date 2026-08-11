@@ -3,7 +3,6 @@ from numpy.typing import NDArray
 import sys
 import time
 import pyuvdata
-import multiprocessing
 from calico import caldata
 from pyuvdata import UVData, UVCal
 
@@ -31,7 +30,7 @@ def sky_based_calibration_wrapper(
     antenna_flagging_iterations: int = 1,
     antenna_flagging_threshold: float = 2.5,
     parallel: bool = True,
-    max_processes: int | None = 40,
+    n_workers: int | None = 40,
     verbose: bool = False,
     log_file_path: str | None = None,
 ) -> UVCal:
@@ -114,7 +113,7 @@ def sky_based_calibration_wrapper(
     parallel : bool
         Set to True to parallelize across frequency with multiprocessing.
         Default True if Nfreqs > 1.
-    max_processes : int, optional, default=40
+    n_workers : int, optional, default=40
         Maximum number of multithreaded processes to use. Applicable only if
         parallel is True. If None, uses the multiprocessing default.
     verbose : bool, default=False
@@ -134,14 +133,6 @@ def sky_based_calibration_wrapper(
         sys.stdout = sys.stderr = log_file_new = open(log_file_path, "w")
 
     start_time = time.time()
-
-    if parallel:  # Start multiprocessing pool
-        if max_processes is None:
-            pool = multiprocessing.Pool()
-        else:
-            pool = multiprocessing.Pool(processes=max_processes)
-    else:
-        pool = None
 
     if verbose:
         data_read_start_time = time.time()
@@ -214,9 +205,6 @@ def sky_based_calibration_wrapper(
 
     if caldata_obj.Nfreqs < 2:  # Do not parallelize
         parallel = False
-        if pool is not None:
-            pool.terminate()
-        pool = None
 
     if verbose:
         print(
@@ -232,8 +220,8 @@ def sky_based_calibration_wrapper(
             maxiter=int(maxiter / 2),  # Lower maxiter for antenna flagging
             get_crosspol_phase=False,  # No crosspol phase needed for antenna flagging
             parallel=parallel,
+            n_workers=n_workers,
             verbose=verbose,
-            pool=pool,
         )
         if verbose:
             print(
@@ -254,17 +242,14 @@ def sky_based_calibration_wrapper(
         get_crosspol_phase=get_crosspol_phase,
         crosspol_phase_strategy=crosspol_phase_strategy,
         parallel=parallel,
+        n_workers=n_workers,
         verbose=verbose,
-        pool=pool,
     )
     if verbose:
         print(
             f"Done. Optimization time: {caldata_obj.Nfreqs} frequency channels in {(time.time() - optimization_start_time)/60.} minutes"
         )
         sys.stdout.flush()
-
-    if parallel:
-        pool.terminate()
 
     # Convert to UVCal object
     uvcal = caldata_obj.convert_to_uvcal()
@@ -472,16 +457,12 @@ def peeling_wrapper(
         crosspol_phase_strategy=crosspol_phase_strategy,
         parallel=parallel,
         verbose=verbose,
-        pool=pool,
     )
     if verbose:
         print(
             f"Done. Optimization time: {caldata_obj.Nfreqs} frequency channels in {(time.time() - optimization_start_time)/60.} minutes"
         )
         sys.stdout.flush()
-
-    if parallel:
-        pool.terminate()
 
     # Convert to UVCal object
     uvcal = caldata_obj.convert_to_uvcal()
@@ -691,7 +672,6 @@ def delay_weighted_calibration_wrapper(
         crosspol_phase_strategy=crosspol_phase_strategy,
         parallel=parallel,
         verbose=verbose,
-        pool=pool,
     )
     if verbose:
         print(

@@ -10,6 +10,32 @@ import multiprocessing
 from numpy.typing import NDArray
 
 
+def _run_skycal_single_freq(args):
+    """
+    Wrapper for calibration_optimization.run_skycal_optimization_per_pol_single_freq that makes
+    the function compatible with multiprocessing.
+    """
+    (
+        caldata_obj,
+        xtol,
+        maxiter,
+        freq_ind,
+        verbose,
+        get_crosspol_phase,
+        crosspol_phase_strategy,
+    ) = args
+    gains_fit = calibration_optimization.run_skycal_optimization_per_pol_single_freq(
+        caldata_obj,
+        xtol,
+        maxiter,
+        freq_ind=freq_ind,
+        verbose=verbose,
+        get_crosspol_phase=get_crosspol_phase,
+        crosspol_phase_strategy=crosspol_phase_strategy,
+    )
+    return freq_ind, gains_fit
+
+
 class CalData:
     """
     Container for all data and parameters needed for calibration.
@@ -771,131 +797,6 @@ class CalData:
         self.ddcal_max_source_offset_deg = ddcal_max_source_offset_deg
         self.ddcal_source_offset_taper_deg = ddcal_source_offset_taper_deg
 
-    def expand_in_frequency(self) -> list:
-        """
-        Converts a caldata object into a list of caldata objects each
-        corresponding to one frequency.
-
-        Returns
-        -------
-        caldata_list : list of caldata objects
-        """
-
-        caldata_list = []
-        for freq_ind in range(self.Nfreqs):
-            caldata_per_freq = CalData()
-            caldata_per_freq.gains = self.gains[:, [freq_ind], :]
-            caldata_per_freq.abscal_params = self.abscal_params[:, [freq_ind], :]
-            caldata_per_freq.Nants = self.Nants
-            caldata_per_freq.Nbls = self.Nbls
-            caldata_per_freq.Ntimes = self.Ntimes
-            caldata_per_freq.Nfreqs = 1
-            caldata_per_freq.N_feed_pols = self.N_feed_pols
-            caldata_per_freq.N_vis_pols = self.N_vis_pols
-            caldata_per_freq.feed_polarization_array = self.feed_polarization_array
-            caldata_per_freq.vis_polarization_array = self.vis_polarization_array
-            caldata_per_freq.model_visibilities = self.model_visibilities[
-                :, :, [freq_ind], :
-            ]
-            caldata_per_freq.data_visibilities = self.data_visibilities[
-                :, :, [freq_ind], :
-            ]
-            caldata_per_freq.visibility_weights = self.visibility_weights[
-                :, :, [freq_ind], :
-            ]
-            caldata_per_freq.ant1_inds = self.ant1_inds
-            caldata_per_freq.ant2_inds = self.ant2_inds
-            caldata_per_freq.gains_multiply_model = self.gains_multiply_model
-            caldata_per_freq.antenna_names = self.antenna_names
-            caldata_per_freq.antenna_numbers = self.antenna_numbers
-            caldata_per_freq.antenna_positions = self.antenna_positions
-            caldata_per_freq.uv_array = self.uv_array
-            caldata_per_freq.channel_width = self.channel_width
-            caldata_per_freq.freq_array = self.freq_array[[freq_ind]]
-            caldata_per_freq.integration_time = self.integration_time
-            caldata_per_freq.time = self.time
-            caldata_per_freq.telescope = self.telescope
-            caldata_per_freq.lst = self.lst
-            caldata_per_freq.lambda_val = self.lambda_val
-            if self.dwcal_inv_covariance is not None:
-                print(
-                    "WARNING: Discarding dwcal_inv_covariance in frequency expansion."
-                )
-            caldata_per_freq.dwcal_inv_covariance = None
-            caldata_per_freq.dwcal_memory_save_mode = None
-            caldata_list.append(caldata_per_freq)
-
-        return caldata_list
-
-    def expand_in_polarization(self) -> list:
-        """
-        Converts a caldata object into a list of caldata objects each
-        corresponding to one feed polarization. List does not include
-        cross-polarization visibilities.
-
-        Returns
-        -------
-        caldata_list : list of caldata objects
-        """
-
-        caldata_list = []
-        for feed_pol_ind, pol in enumerate(self.feed_polarization_array):
-            caldata_per_pol = CalData()
-            sky_pol_ind = np.where(self.vis_polarization_array == pol)[0][0]
-            caldata_per_pol.gains = self.gains[:, :, [feed_pol_ind]]
-            caldata_per_pol.abscal_params = self.abscal_params[:, :, [feed_pol_ind]]
-            caldata_per_pol.Nants = self.Nants
-            caldata_per_pol.Nbls = self.Nbls
-            caldata_per_pol.Ntimes = self.Ntimes
-            caldata_per_pol.Nfreqs = self.Nfreqs
-            caldata_per_pol.N_feed_pols = 1
-            caldata_per_pol.N_vis_pols = 1
-            caldata_per_pol.feed_polarization_array = self.feed_polarization_array[
-                [feed_pol_ind]
-            ]
-            caldata_per_pol.vis_polarization_array = self.vis_polarization_array[
-                [sky_pol_ind]
-            ]
-            caldata_per_pol.model_visibilities = self.model_visibilities[
-                :, :, :, [sky_pol_ind]
-            ]
-            caldata_per_pol.data_visibilities = self.data_visibilities[
-                :, :, :, [sky_pol_ind]
-            ]
-            caldata_per_pol.visibility_weights = self.visibility_weights[
-                :, :, :, [sky_pol_ind]
-            ]
-            caldata_per_pol.ant1_inds = self.ant1_inds
-            caldata_per_pol.ant2_inds = self.ant2_inds
-            caldata_per_pol.gains_multiply_model = self.gains_multiply_model
-            caldata_per_pol.antenna_names = self.antenna_names
-            caldata_per_pol.antenna_numbers = self.antenna_numbers
-            caldata_per_pol.antenna_positions = self.antenna_positions
-            caldata_per_pol.uv_array = self.uv_array
-            caldata_per_pol.channel_width = self.channel_width
-            caldata_per_pol.freq_array = self.freq_array
-            caldata_per_pol.integration_time = self.integration_time
-            caldata_per_pol.time = self.time
-            caldata_per_pol.telescope = self.telescope
-            caldata_per_pol.lst = self.lst
-            caldata_per_pol.lambda_val = self.lambda_val
-            if self.dwcal_inv_covariance is not None:
-                if np.shape(self.dwcal_inv_covariance)[-1] == 1:
-                    caldata_per_pol.dwcal_inv_covariance = self.dwcal_inv_covariance
-                else:
-                    if self.dwcal_memory_save_mode:
-                        caldata_per_pol.dwcal_inv_covariance = (
-                            self.dwcal_inv_covariance[:, :, :, [sky_pol_ind]]
-                        )
-                    else:
-                        caldata_per_pol.dwcal_inv_covariance = (
-                            self.dwcal_inv_covariance[:, :, :, :, [sky_pol_ind]]
-                        )
-            caldata_per_pol.dwcal_memory_save_mode = self.dwcal_memory_save_mode
-            caldata_list.append(caldata_per_pol)
-
-        return caldata_list
-
     def convert_to_uvcal(self) -> UVCal:
         """
         Generate a pyuvdata UVCal object.
@@ -1001,8 +902,7 @@ class CalData:
         get_crosspol_phase: bool = True,
         crosspol_phase_strategy: str = "crosspol model",
         parallel: bool = False,
-        max_processes: int | None = 40,
-        pool=None,  # Type hint?
+        n_workers: int | None = 40,
         verbose: bool = False,
     ) -> None:
         """
@@ -1025,70 +925,85 @@ class CalData:
             phase using the crosspol model visibilities. If "pseudo Stokes V", constrains
             crosspol phase by minimizing pseudo Stokes V. Default "crosspol model".
         parallel : bool
-            Set to True to parallelize across frequency with multiprocessing.
-            Default False if pool is None.
-        max_processes : int
+            Set to True to parallelize across frequency with multiprocessing. Default False.
+        n_workers : int
             Maximum number of multithreaded processes to use. Applicable only if
-            parallel is True and pool is None. If None, uses the multiprocessing
-            default. Default 40.
-        pool : multiprocessing.Pool or None
-            Pool for multiprocessing. If None and parallel is True, a new pool will be
-            created. Default None.
+            parallel is True. If None, uses the multiprocessing default. Default 40.
         verbose : bool
             Set to True to print optimization outputs. Default False.
+
+        Raises
+        ------
+        ValueError
+            If inputs are invalid (n_directions>1, non-positive xtol or maxiter, invalid
+            crosspol_phase_strategy, or n_workers < 1).
         """
 
         if self.n_directions > 1:
-            print(
-                "ERROR: sky_based_calibration does not support multiple directions. Use direction_dependent_calibration instead."
+            raise ValueError(
+                "sky_based_calibration does not support multiple directions. "
+                "Use direction_dependent_calibration instead."
             )
-        elif np.max(self.visibility_weights) == 0.0:
-            print("ERROR: All data flagged.")
-            sys.stdout.flush()
+        if xtol <= 0:
+            raise ValueError(f"xtol must be positive, got {xtol}.")
+        if maxiter <= 0:
+            raise ValueError(f"maxiter must be a positive integer, got {maxiter}.")
+        if get_crosspol_phase and crosspol_phase_strategy not in [
+            "crosspol model",
+            "pseudo Stokes V",
+        ]:
+            raise ValueError(
+                f"crosspol_phase_strategy must be one of "
+                f"['crosspol model', 'pseudo Stokes V'], got {crosspol_phase_strategy!r}."
+            )
+        if parallel and n_workers is not None and n_workers < 1:
+            raise ValueError(
+                f"n_workers must be a positive integer or None, got {n_workers}."
+            )
+        if self.Nfreqs < 1:
+            raise ValueError(f"self.Nfreqs must be positive, got {self.Nfreqs}.")
+
+        if np.max(self.visibility_weights) == 0.0:
+            warnings.warn(
+                "All data flagged; setting all gains to NaN and skipping calibration.",
+                stacklevel=2,
+            )
             self.gains[:, :, :] = np.nan + 1j * np.nan
-        else:
-            if pool is not None:
-                parallel = True
-                use_pool = pool
-            if parallel:
-                caldata_list = self.expand_in_frequency()
-                args_list = []
-                for freq_ind in range(self.Nfreqs):
-                    args = (
-                        caldata_list[freq_ind],
-                        xtol,
-                        maxiter,
-                        0,
-                        verbose,
-                        get_crosspol_phase,
-                        crosspol_phase_strategy,
-                    )
-                    args_list.append(args)
-                if pool is None:
-                    if max_processes is None:
-                        use_pool = multiprocessing.Pool()
-                    else:
-                        use_pool = multiprocessing.Pool(processes=max_processes)
-                gains_fit = use_pool.starmap(
-                    calibration_optimization.run_skycal_optimization_per_pol_single_freq,
-                    args_list,
+            return
+
+        if parallel:
+            n_workers = min(self.Nfreqs, n_workers)
+            ctx = multiprocessing.get_context("fork")
+            task_args = [
+                (
+                    self,
+                    xtol,
+                    maxiter,
+                    freq_ind,
+                    verbose,
+                    get_crosspol_phase,
+                    crosspol_phase_strategy,
                 )
-                for freq_ind in range(self.Nfreqs):
-                    self.gains[:, [freq_ind], :] = gains_fit[freq_ind][:, np.newaxis, :]
-                if pool is None:  # Leave things how we found them
-                    use_pool.terminate()
-            else:
-                for freq_ind in range(self.Nfreqs):
-                    gains_fit = calibration_optimization.run_skycal_optimization_per_pol_single_freq(
-                        self,
-                        xtol,
-                        maxiter,
-                        freq_ind=freq_ind,
-                        verbose=verbose,
-                        get_crosspol_phase=get_crosspol_phase,
-                        crosspol_phase_strategy=crosspol_phase_strategy,
-                    )
+                for freq_ind in range(self.Nfreqs)
+            ]
+            with ctx.Pool(processes=n_workers, maxtasksperchild=10) as pool:
+                for freq_ind, gains_fit in pool.imap_unordered(
+                    _run_skycal_single_freq,
+                    task_args,
+                ):
                     self.gains[:, [freq_ind], :] = gains_fit[:, np.newaxis, :]
+        else:
+            for freq_ind in range(self.Nfreqs):
+                gains_fit = calibration_optimization.run_skycal_optimization_per_pol_single_freq(
+                    self,
+                    xtol,
+                    maxiter,
+                    freq_ind=freq_ind,
+                    verbose=verbose,
+                    get_crosspol_phase=get_crosspol_phase,
+                    crosspol_phase_strategy=crosspol_phase_strategy,
+                )
+                self.gains[:, [freq_ind], :] = gains_fit[:, np.newaxis, :]
 
     def direction_dependent_calibration(
         self,
@@ -1150,13 +1065,13 @@ class CalData:
             )
             sys.exit(1)
 
-        caldata_list = self.expand_in_polarization()
-        for feed_pol_ind, caldata_per_pol in enumerate(caldata_list):
+        for feed_pol_ind in range(self.N_feed_pols):
             self.gains[:, :, feed_pol_ind] = (
                 calibration_optimization.run_dwcal_optimization_per_pol(
-                    caldata_per_pol,
+                    self,
                     xtol,
                     maxiter,
+                    feed_pol_ind,
                     verbose=verbose,
                 )
             )
@@ -1235,19 +1150,19 @@ class CalData:
             Set to True to print optimization outputs. Default False.
         """
 
-        # Expand CalData object into per-frequency objects
-        caldata_list = self.expand_in_frequency()
-
-        for freq_ind in range(self.Nfreqs):
-            abscal_params = (
-                calibration_optimization.run_abscal_optimization_single_freq(
-                    caldata_list[freq_ind],
-                    xtol,
-                    maxiter,
-                    verbose=verbose,
+        for feed_pol_ind in range(self.N_feed_pols):
+            for freq_ind in range(self.Nfreqs):
+                abscal_params = (
+                    calibration_optimization.run_abscal_optimization_single_freq(
+                        self,
+                        xtol,
+                        maxiter,
+                        freq_ind=freq_ind,
+                        feed_pol_ind=feed_pol_ind,
+                        verbose=verbose,
+                    )
                 )
-            )
-            self.abscal_params[:, [freq_ind], :] = abscal_params[:, [0], :]
+                self.abscal_params[:, freq_ind, feed_pol_ind] = abscal_params
 
     def dw_abscal(
         self, xtol: float = 1e-5, maxiter: int = 200, verbose: bool = False
@@ -1266,12 +1181,16 @@ class CalData:
             Set to True to print optimization outputs. Default False.
         """
 
-        self.abscal_params = calibration_optimization.run_dw_abscal_optimization(
-            self,
-            xtol,
-            maxiter,
-            verbose=verbose,
-        )
+        for feed_pol_ind in range(self.N_feed_pols):
+            self.abscal_params[:, :, feed_pol_ind] = (
+                calibration_optimization.run_dw_abscal_optimization(
+                    self,
+                    xtol,
+                    maxiter,
+                    feed_pol_ind=feed_pol_ind,
+                    verbose=verbose,
+                )
+            )
 
     def flag_antennas_from_per_ant_cost(
         self,
