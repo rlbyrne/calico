@@ -1023,7 +1023,7 @@ class CalData:
 
         if parallel:
             n_workers = min(self.Nfreqs, n_workers)
-            ctx = multiprocessing.get_context("fork")
+            ctx = multiprocessing.get_context("forkserver")
             task_args = [
                 (
                     self,
@@ -1093,7 +1093,7 @@ class CalData:
 
         if parallel:
             n_workers = min(self.Nfreqs, n_workers)
-            ctx = multiprocessing.get_context("fork")
+            ctx = multiprocessing.get_context("forkserver")
             task_args = [
                 (
                     self,
