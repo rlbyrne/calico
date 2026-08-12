@@ -36,6 +36,23 @@ def _run_skycal_single_freq(args):
     return freq_ind, gains_fit
 
 
+def _run_ddcal_single_freq(args):
+    """
+    Wrapper for calibration_optimization.run_ddcal_optimization that makes
+    the function compatible with multiprocessing.
+    """
+    caldata_obj, xtol, maxiter, freq_ind, pol_ind, verbose = args
+    gains_fit = calibration_optimization.run_ddcal_optimization(
+        caldata_obj,
+        xtol,
+        maxiter,
+        freq_ind=freq_ind,
+        pol_ind=pol_ind,
+        verbose=verbose,
+    )
+    return pol_ind, freq_ind, gains_fit
+
+
 class CalData:
     """
     Container for all data and parameters needed for calibration.
@@ -215,6 +232,152 @@ class CalData:
                 use_gains = 1 / use_gains
 
         self.gains = use_gains[cal_ant_inds, :]
+
+    def initialize_gains(
+        self,
+        gain_init_calfile: str | None = None,
+        gain_init_to_vis_ratio: bool = True,
+        gain_init_stddev: float = 0.0,
+    ) -> None:
+        """
+        Initialized gains before optimization. Updates self.gains. If gain_init_calfile is not
+        None, self.visibility_weights may also be updated.
+
+        Parameters
+        ----------
+        gain_init_calfile : str
+            Path to a pyuvdata-formatted calfits file or a CASA-formatted .bcal file.
+        gain_init_to_vis_ratio : bool
+            Used only if gain_init_calfile is None. If True, initializes gains
+            to the median ratio between the amplitudes of the model and data
+            visibilities. If False, the gains are initialized to 1. Default
+            True.
+        gain_init_stddev : float
+            Default 0.0. Standard deviation of a random complex Gaussian
+            perturbation to the initial gains.
+        """
+
+        # Initialize gains
+        if gain_init_calfile is None:
+            if self.n_directions == 1:
+                self.gains = np.ones(
+                    (
+                        self.Nants,
+                        self.Nfreqs,
+                        self.N_feed_pols,
+                    ),
+                    dtype=complex,
+                )
+            else:
+                self.gains = np.ones(
+                    (
+                        self.Nants,
+                        self.Nfreqs,
+                        self.N_feed_pols,
+                        self.n_directions,
+                    ),
+                    dtype=complex,
+                )
+            if gain_init_to_vis_ratio:  # Use mean ratio of visibility amplitudes
+                if self.n_directions == 1:
+                    vis_amp_ratio = np.abs(self.model_visibilities) / np.abs(
+                        self.data_visibilities
+                    )
+                    vis_amp_ratio[np.where(self.data_visibilities == 0.0)] = np.nan
+                    for feed_pol_ind, feed_pol in enumerate(
+                        self.feed_polarization_array
+                    ):
+                        vis_pol_ind = np.where(self.vis_polarization_array == feed_pol)[
+                            0
+                        ][0]
+                        if self.gains_multiply_model:
+                            self.gains[:, :, feed_pol_ind] = np.nanmedian(
+                                1 / np.sqrt(vis_amp_ratio[:, :, :, vis_pol_ind])
+                            )
+                        else:
+                            self.gains[:, :, feed_pol_ind] = np.nanmedian(
+                                np.sqrt(vis_amp_ratio[:, :, :, vis_pol_ind])
+                            )
+                else:
+                    for direction_ind in range(self.n_directions):
+                        vis_amp_ratio = np.abs(
+                            self.model_visibilities[:, :, :, :, direction_ind]
+                        ) / np.abs(self.data_visibilities)
+                        vis_amp_ratio[np.where(self.data_visibilities == 0.0)] = np.nan
+                        for feed_pol_ind, feed_pol in enumerate(
+                            self.feed_polarization_array
+                        ):
+                            vis_pol_ind = np.where(
+                                self.vis_polarization_array == feed_pol
+                            )[0][0]
+                            if self.gains_multiply_model:
+                                self.gains[:, :, feed_pol_ind, direction_ind] = (
+                                    np.nanmedian(
+                                        1 / np.sqrt(vis_amp_ratio[:, :, :, vis_pol_ind])
+                                    )
+                                )
+                            else:
+                                self.gains[:, :, feed_pol_ind, direction_ind] = (
+                                    np.nanmedian(
+                                        np.sqrt(vis_amp_ratio[:, :, :, vis_pol_ind])
+                                    )
+                                )
+        else:  # Initialize from file
+            self.set_gains_from_calfile(gain_init_calfile)
+            # Capture nan-ed gains as flags
+            flag_array = np.zeros(
+                (self.Ntimes, self.Nbls, self.Nfreqs, self.N_vis_pols), dtype=bool
+            )
+            for feed_pol_ind, feed_pol in enumerate(self.feed_polarization_array):
+                nan_gains = np.where(~np.isfinite(self.gains[:, :, feed_pol_ind]))
+                if len(nan_gains[0]) > 0:
+                    if feed_pol == -5:
+                        flag_pols = np.where(
+                            (self.vis_polarization_array == -5)
+                            | (self.vis_polarization_array == -7)
+                            | (self.vis_polarization_array == -8)
+                        )[0]
+                    elif feed_pol == -6:
+                        flag_pols = np.where(
+                            (self.vis_polarization_array == -6)
+                            | (self.vis_polarization_array == -7)
+                            | (self.vis_polarization_array == -8)
+                        )[0]
+                    for flag_ind in range(len(nan_gains[0])):
+                        flag_bls = np.unique(
+                            np.concatenate(
+                                (
+                                    np.where(self.ant1_inds == nan_gains[0][flag_ind])[
+                                        0
+                                    ],
+                                    np.where(self.ant2_inds == nan_gains[0][flag_ind])[
+                                        0
+                                    ],
+                                )
+                            )
+                        )
+                        flag_freq = nan_gains[1][flag_ind]
+                        for flag_pol in flag_pols:
+                            flag_array[
+                                :,
+                                flag_bls,
+                                flag_freq,
+                                flag_pol,
+                            ] = True
+            if np.max(flag_array):
+                self.visibility_weights[np.where(flag_array)] = 0.0
+
+        # Random perturbation of initial gains
+        if gain_init_stddev != 0.0:
+            self.gains += np.random.normal(
+                0.0,
+                gain_init_stddev,
+                size=np.shape(self.gains),
+            ) + 1.0j * np.random.normal(
+                0.0,
+                gain_init_stddev,
+                size=np.shape(self.gains),
+            )
 
     def load_data(
         self,
@@ -651,134 +814,6 @@ class CalData:
         else:
             self.feed_polarization_array = feed_polarization_array
 
-        # Initialize gains
-        self.gains_multiply_model = gains_multiply_model
-        if gain_init_calfile is None:
-            if self.n_directions == 1:
-                self.gains = np.ones(
-                    (
-                        self.Nants,
-                        self.Nfreqs,
-                        self.N_feed_pols,
-                    ),
-                    dtype=complex,
-                )
-            else:
-                self.gains = np.ones(
-                    (
-                        self.Nants,
-                        self.Nfreqs,
-                        self.N_feed_pols,
-                        self.n_directions,
-                    ),
-                    dtype=complex,
-                )
-            if gain_init_to_vis_ratio:  # Use mean ratio of visibility amplitudes
-                if self.n_directions == 1:
-                    vis_amp_ratio = np.abs(self.model_visibilities) / np.abs(
-                        self.data_visibilities
-                    )
-                    vis_amp_ratio[np.where(self.data_visibilities == 0.0)] = np.nan
-                    for feed_pol_ind, feed_pol in enumerate(
-                        self.feed_polarization_array
-                    ):
-                        vis_pol_ind = np.where(self.vis_polarization_array == feed_pol)[
-                            0
-                        ][0]
-                        if self.gains_multiply_model:
-                            self.gains[:, :, feed_pol_ind] = np.nanmedian(
-                                1 / np.sqrt(vis_amp_ratio[:, :, :, vis_pol_ind])
-                            )
-                        else:
-                            self.gains[:, :, feed_pol_ind] = np.nanmedian(
-                                np.sqrt(vis_amp_ratio[:, :, :, vis_pol_ind])
-                            )
-                else:
-                    for direction_ind in range(self.n_directions):
-                        vis_amp_ratio = np.abs(
-                            self.model_visibilities[:, :, :, :, direction_ind]
-                        ) / np.abs(self.data_visibilities)
-                        vis_amp_ratio[np.where(self.data_visibilities == 0.0)] = np.nan
-                        for feed_pol_ind, feed_pol in enumerate(
-                            self.feed_polarization_array
-                        ):
-                            vis_pol_ind = np.where(
-                                self.vis_polarization_array == feed_pol
-                            )[0][0]
-                            if self.gains_multiply_model:
-                                self.gains[:, :, feed_pol_ind, direction_ind] = (
-                                    np.nanmedian(
-                                        1 / np.sqrt(vis_amp_ratio[:, :, :, vis_pol_ind])
-                                    )
-                                )
-                            else:
-                                self.gains[:, :, feed_pol_ind, direction_ind] = (
-                                    np.nanmedian(
-                                        np.sqrt(vis_amp_ratio[:, :, :, vis_pol_ind])
-                                    )
-                                )
-        else:  # Initialize from file
-            self.set_gains_from_calfile(gain_init_calfile)
-            # Capture nan-ed gains as flags
-            for feed_pol_ind, feed_pol in enumerate(self.feed_polarization_array):
-                nan_gains = np.where(~np.isfinite(self.gains[:, :, feed_pol_ind]))
-                if len(nan_gains[0]) > 0:
-                    if feed_pol == -5:
-                        flag_pols = np.where(
-                            (metadata_reference.polarization_array == -5)
-                            | (metadata_reference.polarization_array == -7)
-                            | (metadata_reference.polarization_array == -8)
-                        )[0]
-                    elif feed_pol == -6:
-                        flag_pols = np.where(
-                            (metadata_reference.polarization_array == -6)
-                            | (metadata_reference.polarization_array == -7)
-                            | (metadata_reference.polarization_array == -8)
-                        )[0]
-                    for flag_ind in range(len(nan_gains[0])):
-                        flag_bls = np.unique(
-                            np.concatenate(
-                                (
-                                    np.where(self.ant1_inds == nan_gains[0][flag_ind])[
-                                        0
-                                    ],
-                                    np.where(self.ant2_inds == nan_gains[0][flag_ind])[
-                                        0
-                                    ],
-                                )
-                            )
-                        )
-                        flag_freq = nan_gains[1][flag_ind]
-                        for flag_pol in flag_pols:
-                            flag_array[
-                                :,
-                                flag_bls,
-                                flag_freq,
-                                flag_pol,
-                            ] = True
-                    # self.gains[nan_gains[0], nan_gains[1], feed_pol_ind] = (
-                    #    0.0 + 0.0*1j  # Nans in the gains produce matrix multiplication errors, set to zero
-                    # )
-
-        # Free memory
-        metadata_reference = None
-
-        # Random perturbation of initial gains
-        if gain_init_stddev != 0.0:
-            self.gains += np.random.normal(
-                0.0,
-                gain_init_stddev,
-                size=np.shape(self.gains),
-            ) + 1.0j * np.random.normal(
-                0.0,
-                gain_init_stddev,
-                size=np.shape(self.gains),
-            )
-
-        # Initialize abscal parameters
-        self.abscal_params = np.zeros((3, self.Nfreqs, self.N_feed_pols), dtype=float)
-        self.abscal_params[0, :, :] = 1.0
-
         # Define visibility weights
         self.visibility_weights = np.ones(
             (
@@ -791,6 +826,21 @@ class CalData:
         )
         if np.max(flag_array):  # Apply flagging
             self.visibility_weights[np.where(flag_array)] = 0.0
+
+        # Initialize gains
+        self.gains_multiply_model = gains_multiply_model
+        self.initialize_gains(
+            gain_init_calfile=gain_init_calfile,
+            gain_init_to_vis_ratio=gain_init_to_vis_ratio,
+            gain_init_stddev=gain_init_stddev,
+        )
+
+        # Free memory
+        metadata_reference = None
+
+        # Initialize abscal parameters
+        self.abscal_params = np.zeros((3, self.Nfreqs, self.N_feed_pols), dtype=float)
+        self.abscal_params[0, :, :] = 1.0
 
         # Regularization terms
         self.lambda_val = lambda_val
@@ -986,7 +1036,10 @@ class CalData:
                 )
                 for freq_ind in range(self.Nfreqs)
             ]
-            with ctx.Pool(processes=n_workers, maxtasksperchild=10) as pool:
+            with ctx.Pool(
+                processes=n_workers,
+                maxtasksperchild=10,
+            ) as pool:
                 for freq_ind, gains_fit in pool.imap_unordered(
                     _run_skycal_single_freq,
                     task_args,
@@ -1009,6 +1062,8 @@ class CalData:
         self,
         xtol: float = 1e-5,
         maxiter: int = 200,
+        parallel: bool = False,
+        n_workers: int = 40,
         verbose: bool = False,
     ) -> None:
         """
@@ -1021,6 +1076,11 @@ class CalData:
             Accuracy tolerance for optimizer. Default 1e-5.
         maxiter : int
             Maximum number of iterations for the optimizer. Default 200.
+        parallel : bool
+            Set to True to parallelize across frequency with multiprocessing. Default False.
+        n_workers : int
+            Maximum number of multithreaded processes to use. Applicable only if
+            parallel is True. If None, uses the multiprocessing default. Default 40.
         verbose : bool
             Set to True to print optimization outputs. Default False.
         """
@@ -1031,17 +1091,41 @@ class CalData:
             )
             sys.exit(1)
 
-        for pol_ind in range(self.N_feed_pols):
-            for freq_ind in range(self.Nfreqs):
-                gains_fit = calibration_optimization.run_ddcal_optimization(
+        if parallel:
+            n_workers = min(self.Nfreqs, n_workers)
+            ctx = multiprocessing.get_context("fork")
+            task_args = [
+                (
                     self,
                     xtol,
                     maxiter,
-                    freq_ind=freq_ind,
-                    pol_ind=pol_ind,
-                    verbose=verbose,
+                    freq_ind,
+                    pol_ind,
+                    verbose,
                 )
-                self.gains[:, freq_ind, pol_ind, :] = gains_fit
+                for freq_ind in range(self.Nfreqs)
+                for pol_ind in range(self.N_feed_pols)
+            ]
+            with ctx.Pool(
+                processes=n_workers,
+                maxtasksperchild=10,
+            ) as pool:
+                for pol_ind, freq_ind, gains_fit in pool.imap_unordered(
+                    _run_ddcal_single_freq, task_args
+                ):
+                    self.gains[:, freq_ind, pol_ind, :] = gains_fit
+        else:
+            for pol_ind in range(self.N_feed_pols):
+                for freq_ind in range(self.Nfreqs):
+                    gains_fit = calibration_optimization.run_ddcal_optimization(
+                        self,
+                        xtol,
+                        maxiter,
+                        freq_ind=freq_ind,
+                        pol_ind=pol_ind,
+                        verbose=verbose,
+                    )
+                    self.gains[:, freq_ind, pol_ind, :] = gains_fit
 
     def delay_weighted_calibration(
         self, xtol: float = 1e-5, maxiter: int = 200, verbose: bool = False
