@@ -1058,7 +1058,7 @@ class CalData:
         get_crosspol_phase: bool = True,
         crosspol_phase_strategy: str = "crosspol model",
         parallel: bool = False,
-        n_workers: int | None = 40,
+        n_workers: int | None = 20,
         verbose: bool = False,
     ) -> None:
         """
@@ -1084,7 +1084,7 @@ class CalData:
             Set to True to parallelize across frequency with multiprocessing. Default False.
         n_workers : int
             Maximum number of multithreaded processes to use. Applicable only if
-            parallel is True. If None, uses the multiprocessing default. Default 40.
+            parallel is True. If None, uses the multiprocessing default. Default 20.
         verbose : bool
             Set to True to print optimization outputs. Default False.
 
@@ -1161,7 +1161,7 @@ class CalData:
         xtol: float = 1e-5,
         maxiter: int = 200,
         parallel: bool = False,
-        n_workers: int = 40,
+        n_workers: int = 20,
         verbose: bool = False,
     ) -> None:
         """
@@ -1178,7 +1178,7 @@ class CalData:
             Set to True to parallelize across frequency with multiprocessing. Default False.
         n_workers : int
             Maximum number of multithreaded processes to use. Applicable only if
-            parallel is True. If None, uses the multiprocessing default. Default 40.
+            parallel is True. If None, uses the multiprocessing default. Default 20.
         verbose : bool
             Set to True to print optimization outputs. Default False.
         """

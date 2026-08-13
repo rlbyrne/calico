@@ -30,7 +30,7 @@ def sky_based_calibration_wrapper(
     antenna_flagging_iterations: int = 1,
     antenna_flagging_threshold: float = 2.5,
     parallel: bool = True,
-    n_workers: int | None = 40,
+    n_workers: int | None = 20,
     verbose: bool = False,
     log_file_path: str | None = None,
 ) -> UVCal:
@@ -113,7 +113,7 @@ def sky_based_calibration_wrapper(
     parallel : bool
         Set to True to parallelize across frequency with multiprocessing.
         Default True if Nfreqs > 1.
-    n_workers : int, optional, default=40
+    n_workers : int, optional, default=20
         Maximum number of multithreaded processes to use. Applicable only if
         parallel is True. If None, uses the multiprocessing default.
     verbose : bool, default=False
