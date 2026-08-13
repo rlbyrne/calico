@@ -8,6 +8,7 @@ import copy
 from calico import calibration_qa, calibration_optimization
 import multiprocessing
 from numpy.typing import NDArray
+import warnings
 
 
 def _run_skycal_single_freq(args):
@@ -16,7 +17,7 @@ def _run_skycal_single_freq(args):
     the function compatible with multiprocessing.
     """
     (
-        caldata_obj,
+        caldata_subset,
         xtol,
         maxiter,
         freq_ind,
@@ -25,10 +26,10 @@ def _run_skycal_single_freq(args):
         crosspol_phase_strategy,
     ) = args
     gains_fit = calibration_optimization.run_skycal_optimization_per_pol_single_freq(
-        caldata_obj,
+        caldata_subset,
         xtol,
         maxiter,
-        freq_ind=freq_ind,
+        freq_ind=0,
         verbose=verbose,
         get_crosspol_phase=get_crosspol_phase,
         crosspol_phase_strategy=crosspol_phase_strategy,
@@ -51,6 +52,91 @@ def _run_ddcal_single_freq(args):
         verbose=verbose,
     )
     return pol_ind, freq_ind, gains_fit
+
+
+def get_caldata_subset(caldata_obj, freq_ind: int | None, feed_pol_ind: int | None):
+
+    if freq_ind is None:
+        freq_slice = slice(0, caldata_obj.Nfreqs + 1)
+        Nfreqs = caldata_obj.Nfreqs
+    else:
+        freq_slice = slice(freq_ind, freq_ind + 1)
+        Nfreqs = 1
+
+    if feed_pol_ind is None:
+        feed_pol_slice = slice(0, caldata_obj.N_feed_pols + 1)
+        vis_pol_slice = slice(0, caldata_obj.N_vis_pols + 1)
+        N_feed_pols = caldata_obj.N_feed_pols
+        N_vis_pols = caldata_obj.N_vis_pols
+    else:
+        feed_pol_slice = slice(feed_pol_ind, feed_pol_ind + 1)
+        if caldata_obj.N_vis_pols > caldata_obj.N_feed_pols:
+            warnings.warn("WARNING: Discarding cross-polarization data.", stacklevel=2)
+        vis_pol_ind = np.where(
+            caldata_obj.vis_polarization_array
+            == caldata_obj.feed_polarization_array[pol_ind]
+        )[0][0]
+        vis_pol_slice = slice(vis_pol_ind, vis_pol_ind + 1)
+        N_feed_pols = 1
+        N_vis_pols = 1
+
+    caldata_subset = CalData()
+    caldata_subset.gains = caldata_obj.gains[:, freq_slice, feed_pol_slice, ...]
+    caldata_subset.abscal_params = caldata_obj.abscal_params[
+        :, freq_slice, feed_pol_slice
+    ]
+    caldata_subset.Nants = caldata_obj.Nants
+    caldata_subset.Nbls = caldata_obj.Nbls
+    caldata_subset.Ntimes = caldata_obj.Ntimes
+    caldata_subset.Nfreqs = Nfreqs
+    caldata_subset.N_feed_pols = N_feed_pols
+    caldata_subset.N_vis_pols = N_vis_pols
+    caldata_subset.n_directions = caldata_obj.n_directions
+    caldata_subset.feed_polarization_array = caldata_obj.feed_polarization_array[
+        feed_pol_slice
+    ]
+    caldata_subset.vis_polarization_array = caldata_obj.vis_polarization_array[
+        vis_pol_slice
+    ]
+    caldata_subset.model_visibilities = caldata_obj.model_visibilities[
+        :, :, freq_slice, vis_pol_slice, ...
+    ]
+    caldata_subset.data_visibilities = caldata_obj.data_visibilities[
+        :, :, freq_slice, vis_pol_slice
+    ]
+    caldata_subset.visibility_weights = caldata_obj.visibility_weights[
+        :, :, freq_slice, vis_pol_slice
+    ]
+
+    caldata_subset.ant1_inds = caldata_obj.ant1_inds
+    caldata_subset.ant2_inds = caldata_obj.ant2_inds
+    caldata_subset.gains_multiply_model = caldata_obj.gains_multiply_model
+    caldata_subset.antenna_names = caldata_obj.antenna_names
+    caldata_subset.antenna_numbers = caldata_obj.antenna_numbers
+    caldata_subset.antenna_positions = caldata_obj.antenna_positions
+    caldata_subset.antenna_distances = caldata_obj.antenna_distances
+    caldata_subset.uv_array = caldata_obj.uv_array
+    caldata_subset.channel_width = caldata_obj.channel_width
+    caldata_subset.freq_array = caldata_obj.freq_array[freq_slice]
+    caldata_subset.integration_time = caldata_obj.integration_time
+    caldata_subset.time = caldata_obj.time
+    caldata_subset.telescope = caldata_obj.telescope
+    caldata_subset.lst = caldata_obj.lst
+    caldata_subset.lambda_val = caldata_obj.lambda_val
+    caldata_subset.ddcal_max_source_offset_deg = caldata_obj.ddcal_max_source_offset_deg
+    caldata_subset.ddcal_source_offset_taper_deg = (
+        caldata_obj.ddcal_source_offset_taper_deg
+    )
+
+    if caldata_obj.dwcal_inv_covariance is not None:
+        warnings.warn(
+            "WARNING: Discarding dwcal_inv_covariance due to frequency selection.",
+            stacklevel=2,
+        )
+    caldata_subset.dwcal_inv_covariance = None
+    caldata_subset.dwcal_memory_save_mode = None
+
+    return caldata_subset
 
 
 class CalData:
@@ -945,6 +1031,26 @@ class CalData:
 
         return uvcal
 
+    def _skycal_task_generator(
+        self, xtol, maxiter, verbose, get_crosspol_phase, crosspol_phase_strategy
+    ):
+        """
+        Generator, not a list -- subsets are built one at a time as the pool
+        consumes them, rather than all self.Nfreqs subsets being constructed
+        and held in the parent's memory simultaneously before dispatch even starts.
+        """
+        for freq_ind in range(self.Nfreqs):
+            caldata_subset = get_caldata_subset(self, freq_ind, None)
+            yield (
+                caldata_subset,
+                xtol,
+                maxiter,
+                freq_ind,
+                verbose,
+                get_crosspol_phase,
+                crosspol_phase_strategy,
+            )
+
     def sky_based_calibration(
         self,
         xtol: float = 1e-5,
@@ -1024,25 +1130,17 @@ class CalData:
         if parallel:
             n_workers = min(self.Nfreqs, n_workers)
             ctx = multiprocessing.get_context("forkserver")
-            task_args = [
-                (
-                    self,
-                    xtol,
-                    maxiter,
-                    freq_ind,
-                    verbose,
-                    get_crosspol_phase,
-                    crosspol_phase_strategy,
-                )
-                for freq_ind in range(self.Nfreqs)
-            ]
-            with ctx.Pool(
-                processes=n_workers,
-                maxtasksperchild=10,
-            ) as pool:
+
+            with ctx.Pool(processes=n_workers, maxtasksperchild=10) as pool:
                 for freq_ind, gains_fit in pool.imap_unordered(
                     _run_skycal_single_freq,
-                    task_args,
+                    self._skycal_task_generator(
+                        xtol,
+                        maxiter,
+                        verbose,
+                        get_crosspol_phase,
+                        crosspol_phase_strategy,
+                    ),
                 ):
                     self.gains[:, [freq_ind], :] = gains_fit[:, np.newaxis, :]
         else:
