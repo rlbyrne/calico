@@ -933,6 +933,32 @@ def run_skycal_optimization_per_pol_single_freq(
     return gains_fit
 
 
+def run_skycal_optimization_per_pol_single_freq_parallel(args):
+    """
+    Wrapper for run_skycal_optimization_per_pol_single_freq that makes the function compatible with
+    multiprocessing by unpacking a tuple or arguments.
+    """
+    (
+        caldata_subset,
+        xtol,
+        maxiter,
+        freq_ind,
+        verbose,
+        get_crosspol_phase,
+        crosspol_phase_strategy,
+    ) = args
+    gains_fit = run_skycal_optimization_per_pol_single_freq(
+        caldata_subset,
+        xtol,
+        maxiter,
+        freq_ind=0,
+        verbose=verbose,
+        get_crosspol_phase=get_crosspol_phase,
+        crosspol_phase_strategy=crosspol_phase_strategy,
+    )
+    return freq_ind, gains_fit
+
+
 def run_ddcal_optimization(
     caldata_obj,
     xtol: float,
@@ -1042,6 +1068,23 @@ def run_ddcal_optimization(
         gains_fit[:, direction_ind] *= np.cos(avg_angle) - 1j * np.sin(avg_angle)
 
     return gains_fit
+
+
+def run_ddcal_optimization_parallel(args):
+    """
+    Wrapper for run_ddcal_optimization that makes the function compatible with
+    multiprocessing by unpacking a tuple or arguments.
+    """
+    caldata_subset, xtol, maxiter, freq_ind, pol_ind, verbose = args
+    gains_fit = run_ddcal_optimization(
+        caldata_subset,
+        xtol,
+        maxiter,
+        freq_ind=0,
+        pol_ind=0,
+        verbose=verbose,
+    )
+    return freq_ind, pol_ind, gains_fit
 
 
 def run_dwcal_optimization_per_pol(
