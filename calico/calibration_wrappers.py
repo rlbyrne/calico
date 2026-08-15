@@ -200,7 +200,14 @@ def sky_based_calibration_wrapper(
         max_cal_baseline_m=max_cal_baseline_m,
         min_cal_baseline_lambda=min_cal_baseline_lambda,
         max_cal_baseline_lambda=max_cal_baseline_lambda,
+        xtol=xtol,
+        maxiter=maxiter,
+        get_crosspol_phase=get_crosspol_phase,
+        crosspol_phase_strategy=crosspol_phase_strategy,
         lambda_val=lambda_val,
+        verbose=verbose,
+        parallel=parallel,
+        n_workers=n_workers,
     )
 
     if caldata_obj.Nfreqs < 2:  # Do not parallelize
@@ -214,37 +221,30 @@ def sky_based_calibration_wrapper(
         sys.stdout.flush()
         optimization_start_time = time.time()
 
-    for ant_flag_iter in range(antenna_flagging_iterations):
-        caldata_obj.sky_based_calibration(
-            xtol=xtol * 10,  # Higher tolerance for antenna flagging
-            maxiter=int(maxiter / 2),  # Lower maxiter for antenna flagging
-            get_crosspol_phase=False,  # No crosspol phase needed for antenna flagging
-            parallel=parallel,
-            n_workers=n_workers,
-            verbose=verbose,
+    if antenna_flagging_iterations > 0:
+        caldata_obj.xtol = xtol * 10  # Higher tolerance for antenna flagging
+        caldata_obj.maxiter = int(maxiter / 2)  # Lower maxiter for antenna flagging
+        caldata_obj.get_crosspol_phase = (
+            False  # No crosspol phase needed for antenna flagging
         )
-        if verbose:
-            print(
-                f"Optimization time: {caldata_obj.Nfreqs} frequency channels in {(time.time() - optimization_start_time)/60.} minutes."
+        for ant_flag_iter in range(antenna_flagging_iterations):
+            caldata_obj.sky_based_calibration()
+            if verbose:
+                print(
+                    f"Optimization time: {caldata_obj.Nfreqs} frequency channels in {(time.time() - optimization_start_time)/60.} minutes."
+                )
+                print(
+                    f"Initial calibration optimization done. Antenna flagging iteration {ant_flag_iter+1} of {antenna_flagging_iterations}."
+                )
+                sys.stdout.flush()
+            caldata_obj.flag_antennas_from_per_ant_cost(
+                flagging_threshold=antenna_flagging_threshold,
             )
-            print(
-                f"Initial calibration optimization done. Antenna flagging iteration {ant_flag_iter+1} of {antenna_flagging_iterations}."
-            )
-            sys.stdout.flush()
-        caldata_obj.flag_antennas_from_per_ant_cost(
-            flagging_threshold=antenna_flagging_threshold,
-            verbose=verbose,
-        )
+        caldata_obj.xtol = xtol
+        caldata_obj.maxiter = maxiter
+        caldata_obj.get_crosspol_phase = get_crosspol_phase
 
-    caldata_obj.sky_based_calibration(
-        xtol=xtol,
-        maxiter=maxiter,
-        get_crosspol_phase=get_crosspol_phase,
-        crosspol_phase_strategy=crosspol_phase_strategy,
-        parallel=parallel,
-        n_workers=n_workers,
-        verbose=verbose,
-    )
+    caldata_obj.sky_based_calibration()
     if verbose:
         print(
             f"Done. Optimization time: {caldata_obj.Nfreqs} frequency channels in {(time.time() - optimization_start_time)/60.} minutes"
@@ -438,6 +438,11 @@ def peeling_wrapper(
         min_cal_baseline_lambda=min_cal_baseline_lambda,
         max_cal_baseline_lambda=max_cal_baseline_lambda,
         lambda_val=lambda_val,
+        xtol=xtol,
+        maxiter=maxiter,
+        verbose=verbose,
+        parallel=parallel,
+        n_workers=n_workers,
         ddcal_max_source_offset_deg=max_source_offset_deg,
         ddcal_source_offset_taper_deg=source_offset_taper_deg,
     )
@@ -450,14 +455,7 @@ def peeling_wrapper(
         sys.stdout.flush()
         optimization_start_time = time.time()
 
-    caldata_obj.sky_based_calibration(
-        xtol=xtol,
-        maxiter=maxiter,
-        get_crosspol_phase=get_crosspol_phase,
-        crosspol_phase_strategy=crosspol_phase_strategy,
-        parallel=parallel,
-        verbose=verbose,
-    )
+    caldata_obj.direction_dependent_calibration()
     if verbose:
         print(
             f"Done. Optimization time: {caldata_obj.Nfreqs} frequency channels in {(time.time() - optimization_start_time)/60.} minutes"
@@ -650,6 +648,11 @@ def delay_weighted_calibration_wrapper(
         min_cal_baseline_lambda=min_cal_baseline_lambda,
         max_cal_baseline_lambda=max_cal_baseline_lambda,
         lambda_val=lambda_val,
+        xtol=xtol,
+        maxiter=maxiter,
+        verbose=verbose,
+        get_crosspol_phase=get_crosspol_phase,
+        crosspol_phase_strategy=crosspol_phase_strategy,
     )
     caldata_obj.get_dwcal_weights_from_delay_spectra(
         delay_spectrum_variance,
@@ -665,14 +668,7 @@ def delay_weighted_calibration_wrapper(
         sys.stdout.flush()
         optimization_start_time = time.time()
 
-    caldata_obj.delay_weighted_calibration(
-        xtol=xtol,
-        maxiter=maxiter,
-        get_crosspol_phase=get_crosspol_phase,
-        crosspol_phase_strategy=crosspol_phase_strategy,
-        parallel=parallel,
-        verbose=verbose,
-    )
+    caldata_obj.delay_weighted_calibration()
     if verbose:
         print(
             f"Done. Optimization time: {caldata_obj.Nfreqs} frequency channels in {(time.time() - optimization_start_time)/60.} minutes"
@@ -829,6 +825,9 @@ def abscal_wrapper(
         max_cal_baseline_m=max_cal_baseline_m,
         min_cal_baseline_lambda=min_cal_baseline_lambda,
         max_cal_baseline_lambda=max_cal_baseline_lambda,
+        xtol=xtol,
+        maxiter=maxiter,
+        verbose=verbose,
     )
 
     if verbose:
@@ -840,7 +839,7 @@ def abscal_wrapper(
 
     optimization_start_time = time.time()
 
-    caldata_obj.abscal(xtol=xtol, maxiter=maxiter, verbose=verbose)
+    caldata_obj.abscal()
 
     if verbose:
         print(
@@ -1005,6 +1004,9 @@ def dw_absolute_calibration(
         max_cal_baseline_m=max_cal_baseline_m,
         min_cal_baseline_lambda=min_cal_baseline_lambda,
         max_cal_baseline_lambda=max_cal_baseline_lambda,
+        xtol=xtol,
+        maxiter=maxiter,
+        verbose=verbose,
     )
 
     if initial_abscal_params is not None:
@@ -1031,7 +1033,7 @@ def dw_absolute_calibration(
         sys.stdout.flush()
         optimization_start_time = time.time()
 
-    caldata_obj.dw_abscal(xtol=xtol, maxiter=maxiter, verbose=verbose)
+    caldata_obj.dw_abscal()
 
     if verbose:
         print(
