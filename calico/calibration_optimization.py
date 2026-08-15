@@ -765,8 +765,6 @@ def hessian_dw_abscal_wrapper(
 
 def run_skycal_optimization_per_pol_single_freq(
     caldata_obj,
-    xtol: float,
-    maxiter: int,
     freq_ind: int = 0,
     verbose: bool = True,
     get_crosspol_phase: bool = True,
@@ -781,22 +779,8 @@ def run_skycal_optimization_per_pol_single_freq(
     Parameters
     ----------
     caldata_obj : CalData
-    xtol : float
-        Accuracy tolerance for optimizer.
-    maxiter : int
-        Maximum number of iterations for the optimizer.
     freq_ind : int
         Frequency channel to process. Default 0.
-    verbose : bool
-        Set to True to print optimization outputs. Default True.
-    get_crosspol_phase : bool
-        Set to True to constrain the cross-polarizaton phase from the XY and YX
-        visibilities. Default True.
-    crosspol_phase_strategy : str
-        Options are "crosspol model" or "pseudo Stokes V". Used only if
-        get_crosspol_phase is True. If "crosspol model", contrains the crosspol
-        phase using the crosspol model visibilities. If "pseudo Stokes V", constrains
-        crosspol phase by minimizing pseudo Stokes V. Default "crosspol model".
 
     Returns
     -------
@@ -810,7 +794,7 @@ def run_skycal_optimization_per_pol_single_freq(
         dtype=complex,
     )
     if np.max(caldata_obj.visibility_weights[:, :, freq_ind, :]) == 0.0:
-        if verbose:
+        if caldata_obj.verbose:
             print("WARNING: All data flagged.")
             sys.stdout.flush()
         gains_fit[:, :] = np.nan + 1j * np.nan
@@ -855,10 +839,14 @@ def run_skycal_optimization_per_pol_single_freq(
                 method="Newton-CG",
                 jac=jacobian_skycal_wrapper,
                 hess=hessian_skycal_wrapper,
-                options={"disp": verbose, "xtol": xtol, "maxiter": maxiter},
+                options={
+                    "disp": caldata_obj.verbose,
+                    "xtol": caldata_obj.xtol,
+                    "maxiter": caldata_obj.maxiter,
+                },
             )
             end_optimize = time.time()
-            if verbose:
+            if caldata_obj.verbose and not caldata_obj.parallel:
                 print(result.message)
                 print(
                     f"Freq. {freq_ind} Pol. {feed_pol_ind}, optimization time: {(end_optimize - start_optimize)/60.} minutes"
@@ -880,7 +868,7 @@ def run_skycal_optimization_per_pol_single_freq(
 
     # Constrain crosspol phase
     if (
-        get_crosspol_phase
+        caldata_obj.get_crosspol_phase
         and caldata_obj.N_feed_pols == 2
         and caldata_obj.N_vis_pols == 4
     ):
@@ -900,7 +888,7 @@ def run_skycal_optimization_per_pol_single_freq(
                 for pol in crosspol_polarizations
             ]
         )
-        if crosspol_phase_strategy.lower() == "pseudo stokes v":
+        if caldata_obj.crosspol_phase_strategy.lower() == "pseudo stokes v":
             crosspol_phase = cost_function_calculations.set_crosspol_phase_pseudoV(
                 gains_fit,
                 caldata_obj.data_visibilities[:, :, freq_ind, crosspol_indices],
@@ -908,7 +896,7 @@ def run_skycal_optimization_per_pol_single_freq(
                 caldata_obj.ant1_inds,
                 caldata_obj.ant2_inds,
             )
-        elif crosspol_phase_strategy.lower() == "crosspol model":
+        elif caldata_obj.crosspol_phase_strategy.lower() == "crosspol model":
             crosspol_phase = cost_function_calculations.set_crosspol_phase(
                 gains_fit,
                 caldata_obj.model_visibilities[:, :, freq_ind, crosspol_indices],
@@ -938,34 +926,25 @@ def run_skycal_optimization_per_pol_single_freq_parallel(args):
     Wrapper for run_skycal_optimization_per_pol_single_freq that makes the function compatible with
     multiprocessing by unpacking a tuple or arguments.
     """
-    (
-        caldata_subset,
-        xtol,
-        maxiter,
-        freq_ind,
-        verbose,
-        get_crosspol_phase,
-        crosspol_phase_strategy,
-    ) = args
+    (caldata_subset, freq_ind) = args
+    start_optimize = time.time()
     gains_fit = run_skycal_optimization_per_pol_single_freq(
         caldata_subset,
-        xtol,
-        maxiter,
         freq_ind=0,
-        verbose=verbose,
-        get_crosspol_phase=get_crosspol_phase,
-        crosspol_phase_strategy=crosspol_phase_strategy,
     )
+    end_optimize = time.time()
+    if caldata_subset.verbose:
+        print(
+            f"Freq. {freq_ind}, optimization time: {(end_optimize - start_optimize)/60.} minutes"
+        )
+        sys.stdout.flush()
     return freq_ind, gains_fit
 
 
 def run_ddcal_optimization(
     caldata_obj,
-    xtol: float,
-    maxiter: int,
     freq_ind: int = 0,
     pol_ind: int = 0,
-    verbose: bool = True,
 ) -> NDArray[np.complexfloating]:
     """
     Run direction-dependent calibration per frequency and polarization.
@@ -973,16 +952,10 @@ def run_ddcal_optimization(
     Parameters
     ----------
     caldata_obj : CalData
-    xtol : float
-        Accuracy tolerance for optimizer.
-    maxiter : int
-        Maximum number of iterations for the optimizer.
     freq_ind : int
         Frequency channel to process. Default 0.
     pol_ind : int
         Feed polarization index to process. Default 0.
-    verbose : bool
-        Set to True to print optimization outputs. Default True.
 
     Returns
     -------
@@ -1004,7 +977,7 @@ def run_ddcal_optimization(
     if (
         np.max(caldata_obj.visibility_weights[:, :, freq_ind, vis_pol_ind]) == 0.0
     ):  # All flagged
-        if verbose:
+        if caldata_obj.verbose:
             print("WARNING: All data flagged.")
             sys.stdout.flush()
         gains_fit[...] = np.nan + 1j * np.nan
@@ -1041,10 +1014,14 @@ def run_ddcal_optimization(
         method="Newton-CG",
         jac=jax.jacrev(cost_ddcal_wrapper),
         hess=jax.jacrev(jax.jacrev(cost_ddcal_wrapper)),
-        options={"disp": verbose, "xtol": xtol, "maxiter": maxiter},
+        options={
+            "disp": caldata_obj.verbose,
+            "xtol": caldata_obj.xtol,
+            "maxiter": caldata_obj.maxiter,
+        },
     )
     end_optimize = time.time()
-    if verbose:
+    if caldata_obj.verbose and not caldata_obj.parallel:
         print(result.message)
         print(
             f"Freq. {freq_ind} Pol. {pol_ind}, optimization time: {(end_optimize - start_optimize)/60.} minutes"
@@ -1075,24 +1052,25 @@ def run_ddcal_optimization_parallel(args):
     Wrapper for run_ddcal_optimization that makes the function compatible with
     multiprocessing by unpacking a tuple or arguments.
     """
-    caldata_subset, xtol, maxiter, freq_ind, pol_ind, verbose = args
+    (caldata_subset, freq_ind, pol_ind) = args
+    start_optimize = time.time()
     gains_fit = run_ddcal_optimization(
         caldata_subset,
-        xtol,
-        maxiter,
         freq_ind=0,
         pol_ind=0,
-        verbose=verbose,
     )
+    end_optimize = time.time()
+    if caldata_subset.verbose:
+        print(
+            f"Freq. {freq_ind} Pol. {pol_ind}, optimization time: {(end_optimize - start_optimize)/60.} minutes"
+        )
+        sys.stdout.flush()
     return freq_ind, pol_ind, gains_fit
 
 
 def run_dwcal_optimization_per_pol(
     caldata_obj,
-    xtol: float,
-    maxiter: int,
     pol_ind: int = 0,
-    verbose: bool = True,
 ) -> NDArray[np.complexfloating]:
     """
     Run delay-weighted calibration for a single polarization. Uses automatic
@@ -1102,14 +1080,8 @@ def run_dwcal_optimization_per_pol(
     Parameters
     ----------
     caldata_obj : CalData
-    xtol : float
-        Accuracy tolerance for optimizer.
-    maxiter : int
-        Maximum number of iterations for the optimizer.
     pol_ind : int
         Feed polarization index to process. Default 0.
-    verbose : bool
-        Set to True to print optimization outputs. Default True.
 
     Returns
     -------
@@ -1170,15 +1142,19 @@ def run_dwcal_optimization_per_pol(
         method="Newton-CG",
         jac=jax.jacrev(cost_dwcal_wrapper),
         hess=jax.jacrev(jax.jacrev(cost_dwcal_wrapper)),
-        options={"disp": verbose, "xtol": xtol, "maxiter": maxiter},
+        options={
+            "disp": caldata_obj.verbose,
+            "xtol": caldata_obj.xtol,
+            "maxiter": caldata_obj.maxiter,
+        },
     )
     end_optimize = time.time()
-    if verbose:
+    if caldata_obj.verbose:
         print(result.message)
         print(
-            f"Freq. {freq_ind} Pol. {feed_pol_ind}, optimization time: {(end_optimize - start_optimize)/60.} minutes"
+            f"Pol. {pol_ind}, optimization time: {(end_optimize - start_optimize)/60.} minutes"
         )
-    sys.stdout.flush()
+        sys.stdout.flush()
     gains_fit_unflagged = np.reshape(
         result.x, (len(ant_inds), len(unflagged_freq_inds), 2)
     )
@@ -1190,11 +1166,8 @@ def run_dwcal_optimization_per_pol(
 
 def run_abscal_optimization_single_freq(
     caldata_obj,
-    xtol: float,
-    maxiter: int,
     freq_ind: int = 0,
     feed_pol_ind: int = 0,
-    verbose: bool = True,
 ) -> NDArray[np.complexfloating]:
     """
     Run absolute calibration ("abscal").
@@ -1202,16 +1175,10 @@ def run_abscal_optimization_single_freq(
     Parameters
     ----------
     caldata_obj : CalData
-    xtol : float
-        Accuracy tolerance for optimizer.
-    maxiter : int
-        Maximum number of iterations for the optimizer.
     freq_ind : int
         Frequency channel to process. Default 0.
     feed_pol_ind : int
         Feed polarization index to process. Default 0.
-    verbose : bool
-        Set to True to print optimization outputs. Default True.
 
     Returns
     -------
@@ -1231,11 +1198,15 @@ def run_abscal_optimization_single_freq(
         method="Newton-CG",
         jac=jacobian_abscal_wrapper,
         hess=hessian_abscal_wrapper,
-        options={"disp": verbose, "xtol": xtol, "maxiter": maxiter},
+        options={
+            "disp": caldata_obj.verbose,
+            "xtol": caldata_obj.xtol,
+            "maxiter": caldata_obj.maxiter,
+        },
     )
     abscal_params = result.x
     end_optimize = time.time()
-    if verbose:
+    if caldata_obj.verbose:
         print(result.message)
         print(f"Optimization time: {(end_optimize - start_optimize)/60.} minutes")
     sys.stdout.flush()
@@ -1245,10 +1216,7 @@ def run_abscal_optimization_single_freq(
 
 def run_dw_abscal_optimization(
     caldata_obj,
-    xtol: float,
-    maxiter: int,
     feed_pol_ind: int = 0,
-    verbose: bool = True,
 ) -> NDArray[np.complexfloating]:
     """
     Run absolute calibration with delay weighting.
@@ -1256,14 +1224,8 @@ def run_dw_abscal_optimization(
     Parameters
     ----------
     caldata_obj : CalData
-    xtol : float
-        Accuracy tolerance for optimizer.
-    maxiter : int
-        Maximum number of iterations for the optimizer.
     feed_pol_ind : int
         Feed polarization index to process. Default 0.
-    verbose : bool
-        Set to True to print optimization outputs. Default True.
 
     Returns
     -------
@@ -1278,13 +1240,13 @@ def run_dw_abscal_optimization(
     abscal_params = np.zeros_like(caldata_obj.abscal_params[:, :, feed_pol_ind])
 
     unflagged_freq_inds = np.where(
-        np.sum(caldata_per_pol.visibility_weights, axis=(0, 1, 3)) > 0
+        np.sum(caldata_obj.visibility_weights, axis=(0, 1, 3)) > 0
     )[0]
     if len(unflagged_freq_inds) == 0:
         print(f"ERROR: Data all flagged.")
         sys.stdout.flush()
         return
-    abscal_params_flattened = caldata_per_pol.abscal_params[
+    abscal_params_flattened = caldata_obj.abscal_params[
         :, unflagged_freq_inds, feed_pol_ind
     ].flatten()
     # Minimize the cost function
@@ -1296,12 +1258,16 @@ def run_dw_abscal_optimization(
         method="Newton-CG",
         jac=jacobian_dw_abscal_wrapper,
         hess=hessian_dw_abscal_wrapper,
-        options={"disp": verbose, "xtol": xtol, "maxiter": maxiter},
+        options={
+            "disp": caldata_obj.verbose,
+            "xtol": caldata_obj.xtol,
+            "maxiter": caldata_obj.maxiter,
+        },
     )
     abscal_params[:, unflagged_freq_inds] = np.reshape(
         result.x, (3, len(unflagged_freq_inds))
     )
-    if verbose:
+    if caldata_objverbose:
         print(result.message)
         print(f"Optimization time: {(time.time() - start_optimize)/60.} minutes")
     sys.stdout.flush()

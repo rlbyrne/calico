@@ -95,13 +95,31 @@ class CalData:
         Object containing the telescope metadata.
     lst : str
         Local sidereal time (LST), in radians.
+    xtol : float
+        Accuracy tolerance for optimizer.
+    maxiter : int
+        Maximum number of iterations for the optimizer.
     lambda_val : float
         Weight of the phase regularization term; must be positive or zero.
+    get_crosspol_phase : bool
+        If True, calculate crosspol phase in sky-based calibration.
+    crosspol_phase_strategy : str
+        Strategy used to calculate the crosspol phase in sky-based calibration.
+        Options are "crosspol model" or "pseudo Stokes V". Used only if
+        get_crosspol_phase is True. If "crosspol model", contrains the crosspol
+        phase using the crosspol model visibilities. If "pseudo Stokes V", constrains
+        crosspol phase by minimizing pseudo Stokes V.
     ddcal_max_source_offset_deg : float or None
         Allowable distance that a source is allowed to drift in direction-dependent
         calibration.
     ddcal_source_offset_taper_deg : float or None
         Taper on the source drift regularization for direction-dependent calibration.
+    parallel : bool
+        If True, calibration is parallelized.
+    n_workers : int
+        Number of workers to use in parallel processing. Used only if parallel=True.
+    verbose : bool
+        Set to True to print optimization outputs.
     """
 
     def __init__(self):
@@ -135,9 +153,16 @@ class CalData:
         self.time = None
         self.telescope = None
         self.lst = None
+        self.xtol = None
+        self.maxiter = None
         self.lambda_val = None
+        self.get_crosspol_phase = None
+        self.crosspol_phase_strategy = None
         self.ddcal_max_source_offset_deg = None
         self.ddcal_source_offset_taper_deg = None
+        self.parallel = None
+        self.n_workers = None
+        self.verbose = None
 
     def copy(self) -> Self:
         return copy.deepcopy(self)
@@ -354,9 +379,16 @@ class CalData:
         max_cal_baseline_m: float | None = None,
         min_cal_baseline_lambda: float | None = None,
         max_cal_baseline_lambda: float | None = None,
+        xtol: float = 1e-5,
+        maxiter: int = 200,
         lambda_val: float = 0.0,
+        get_crosspol_phase: bool = False,
+        crosspol_phase_strategy: str | None = None,
         ddcal_max_source_offset_deg: float | None = None,
         ddcal_source_offset_taper_deg: float | None = None,
+        verbose: bool = False,
+        parallel: bool = False,
+        n_workers: int = 20,
         time_match_tol: float = 1e-5,
         freq_match_tol: float = 1e-5,
     ) -> None:
@@ -417,13 +449,32 @@ class CalData:
             Maximum baseline length, in wavelengths, to use in calibration. If
             both max_cal_baseline_m and max_cal_baseline_lambda are None,
             arbitrarily long baselines are used. Default None.
+        xtol : float
+            Accuracy tolerance for optimizer. Default 1e-5.
+        maxiter : int
+            Maximum number of iterations for the optimizer. Default 200.
         lambda_val : float
             Weight of the phase regularization term; must be positive or zero.
             Default 0.
+        get_crosspol_phase : bool
+            If True, calculate crosspol phase in sky-based calibration. Default False
+        crosspol_phase_strategy : str or None
+            Strategy used to calculate the crosspol phase in sky-based calibration.
+            Options are "crosspol model" or "pseudo Stokes V". Used only if
+            get_crosspol_phase is True. If "crosspol model", contrains the crosspol
+            phase using the crosspol model visibilities. If "pseudo Stokes V", constrains
+            crosspol phase by minimizing pseudo Stokes V.
         ddcal_max_source_offset_deg : float or None
             Allowable source offset for direction-dependent calibration, in degrees,
         ddcal_source_offset_taper_deg : float or None
             Taper on the source offset regularization for direction-dependent calibration.
+        verbose : bool
+            Set to True to print outputs in optimization. Default False.
+        parallel : bool
+            If True, calibration is parallelized.
+        n_workers : int
+            Number of workers to use in parallel processing. Used only if parallel=True.
+            Default 20.
         time_match_tol : float
             Tolerance threshold for time agreement between data and model. Units
             Julian Date. Default 1e-5. Used only if check_vis_ordering is True.
@@ -805,6 +856,15 @@ class CalData:
         self.lambda_val = lambda_val
         self.ddcal_max_source_offset_deg = ddcal_max_source_offset_deg
         self.ddcal_source_offset_taper_deg = ddcal_source_offset_taper_deg
+        self.get_crosspol_phase = get_crosspol_phase
+        self.crosspol_phase_strategy = crosspol_phase_strategy
+
+        # Optimizer options
+        self.xtol = xtol
+        self.maxiter = maxiter
+        self.verbose = verbose
+        self.parallel = parallel
+        self.n_workers = n_workers
 
     def get_caldata_subset(
         self, freq_ind: int | None, feed_pol_ind: int | None
@@ -876,11 +936,18 @@ class CalData:
         caldata_subset.time = self.time
         caldata_subset.telescope = self.telescope
         caldata_subset.lst = self.lst
+        caldata_subset.xtol = self.xtol
+        caldata_subset.maxiter = self.maxiter
         caldata_subset.lambda_val = self.lambda_val
+        caldata_subset.get_crosspol_phase = self.get_crosspol_phase
+        caldata_subset.crosspol_phase_strategy = self.crosspol_phase_strategy
         caldata_subset.ddcal_max_source_offset_deg = self.ddcal_max_source_offset_deg
         caldata_subset.ddcal_source_offset_taper_deg = (
             self.ddcal_source_offset_taper_deg
         )
+        caldata_subset.verbose = self.verbose
+        caldata_subset.parallel = self.parallel
+        caldata_subset.n_workers = self.n_workers
 
         if self.dwcal_inv_covariance is not None:
             warnings.warn(
@@ -990,60 +1057,20 @@ class CalData:
 
         return uvcal
 
-    def _sky_based_calibration_task_generator(
-        self, xtol, maxiter, verbose, get_crosspol_phase, crosspol_phase_strategy
-    ):
+    def _sky_based_calibration_task_generator(self):
         """
         Generator that assembles arugments for running sky_based_calibration in parallel.
         """
         for freq_ind in range(self.Nfreqs):
             caldata_subset = self.get_caldata_subset(freq_ind, None)
-            yield (
-                caldata_subset,
-                xtol,
-                maxiter,
-                freq_ind,
-                verbose,
-                get_crosspol_phase,
-                crosspol_phase_strategy,
-            )
+            yield (caldata_subset, freq_ind)
 
-    def sky_based_calibration(
-        self,
-        xtol: float = 1e-5,
-        maxiter: int = 200,
-        get_crosspol_phase: bool = True,
-        crosspol_phase_strategy: str = "crosspol model",
-        parallel: bool = False,
-        n_workers: int | None = 20,
-        verbose: bool = False,
-    ) -> None:
+    def sky_based_calibration(self) -> None:
         """
         Run calibration per polarization. Updates the gains attribute with calibrated values.
         Here the XX and YY visibilities are calibrated individually and the cross-polarization
         phase is applied from the XY and YX visibilities after the fact. Option to parallelize
         calibration across frequency.
-
-        Parameters
-        ----------
-        xtol : float
-            Accuracy tolerance for optimizer. Default 1e-5.
-        maxiter : int
-            Maximum number of iterations for the optimizer. Default 200.
-        get_crosspol_phase : bool
-            If True, crosspol phase is calculated. Default True.
-        crosspol_phase_strategy : str
-            Options are "crosspol model" or "pseudo Stokes V". Used only if
-            get_crosspol_phase is True. If "crosspol model", contrains the crosspol
-            phase using the crosspol model visibilities. If "pseudo Stokes V", constrains
-            crosspol phase by minimizing pseudo Stokes V. Default "crosspol model".
-        parallel : bool
-            Set to True to parallelize across frequency with multiprocessing. Default False.
-        n_workers : int
-            Maximum number of multithreaded processes to use. Applicable only if
-            parallel is True. If None, uses the multiprocessing default. Default 20.
-        verbose : bool
-            Set to True to print optimization outputs. Default False.
 
         Raises
         ------
@@ -1057,11 +1084,11 @@ class CalData:
                 "sky_based_calibration does not support multiple directions. "
                 "Use direction_dependent_calibration instead."
             )
-        if xtol <= 0:
+        if self.xtol <= 0:
             raise ValueError(f"xtol must be positive, got {xtol}.")
-        if maxiter <= 0:
+        if self.maxiter <= 0:
             raise ValueError(f"maxiter must be a positive integer, got {maxiter}.")
-        if get_crosspol_phase and crosspol_phase_strategy not in [
+        if self.get_crosspol_phase and self.crosspol_phase_strategy not in [
             "crosspol model",
             "pseudo Stokes V",
         ]:
@@ -1069,9 +1096,9 @@ class CalData:
                 f"crosspol_phase_strategy must be one of "
                 f"['crosspol model', 'pseudo Stokes V'], got {crosspol_phase_strategy!r}."
             )
-        if parallel and n_workers is not None and n_workers < 1:
+        if self.parallel and self.n_workers is not None and self.n_workers < 1:
             raise ValueError(
-                f"n_workers must be a positive integer or None, got {n_workers}."
+                f"n_workers must be a positive integer or None, got {self.n_workers}."
             )
         if self.Nfreqs < 1:
             raise ValueError(f"self.Nfreqs must be positive, got {self.Nfreqs}.")
@@ -1084,88 +1111,56 @@ class CalData:
             self.gains[:, :, :] = np.nan + 1j * np.nan
             return
 
-        if parallel:
-            n_workers = min(self.Nfreqs, n_workers)
+        if self.parallel:
+            n_workers = min(self.Nfreqs, self.n_workers)
             ctx = multiprocessing.get_context("forkserver")
 
             with ctx.Pool(processes=n_workers, maxtasksperchild=10) as pool:
                 for freq_ind, gains_fit in pool.imap_unordered(
                     calibration_optimization.run_skycal_optimization_per_pol_single_freq_parallel,
-                    self._sky_based_calibration_task_generator(
-                        xtol,
-                        maxiter,
-                        verbose,
-                        get_crosspol_phase,
-                        crosspol_phase_strategy,
-                    ),
+                    self._sky_based_calibration_task_generator(),
                 ):
                     self.gains[:, freq_ind, :] = gains_fit
         else:
             for freq_ind in range(self.Nfreqs):
                 gains_fit = calibration_optimization.run_skycal_optimization_per_pol_single_freq(
                     self,
-                    xtol,
-                    maxiter,
                     freq_ind=freq_ind,
-                    verbose=verbose,
-                    get_crosspol_phase=get_crosspol_phase,
-                    crosspol_phase_strategy=crosspol_phase_strategy,
                 )
                 self.gains[:, freq_ind, :] = gains_fit
 
-    def _direction_dependent_calibration_task_generator(self, xtol, maxiter, verbose):
+    def _direction_dependent_calibration_task_generator(self):
         """
         Generator that assembles arugments for running sky_based_calibration in parallel.
         """
         for freq_ind in range(self.Nfreqs):
             for pol_ind in range(self.N_feed_pols):
                 caldata_subset = self.get_caldata_subset(freq_ind, pol_ind)
-                yield (caldata_subset, xtol, maxiter, freq_ind, pol_ind, verbose)
+                yield (caldata_subset, freq_ind, pol_ind)
 
-    def direction_dependent_calibration(
-        self,
-        xtol: float = 1e-5,
-        maxiter: int = 200,
-        parallel: bool = False,
-        n_workers: int = 20,
-        verbose: bool = False,
-    ) -> None:
+    def direction_dependent_calibration(self) -> None:
         """
         Run direction-dependent calibration for each polarization and frequency. Updates the
         gains attribute with calibrated values.
-
-        Parameters
-        ----------
-        xtol : float
-            Accuracy tolerance for optimizer. Default 1e-5.
-        maxiter : int
-            Maximum number of iterations for the optimizer. Default 200.
-        parallel : bool
-            Set to True to parallelize across frequency with multiprocessing. Default False.
-        n_workers : int
-            Maximum number of multithreaded processes to use. Applicable only if
-            parallel is True. If None, uses the multiprocessing default. Default 20.
-        verbose : bool
-            Set to True to print optimization outputs. Default False.
         """
 
         if not self.gains_multiply_model:
             raise ValueError(
                 "gains_multiply_model is False. Direction-dependent calibration requires that gains_multiply_model=True."
             )
+        if self.get_crosspol_phase:
+            raise ValueError(
+                "get_crosspol_phase is True, but direction_dependent_calibration does not support crosspol phase evaluation."
+            )
 
-        if parallel:
-            n_workers = min(self.Nfreqs, n_workers)
+        if self.parallel:
+            n_workers = min(self.Nfreqs, self.n_workers)
             ctx = multiprocessing.get_context("forkserver")
 
             with ctx.Pool(processes=n_workers, maxtasksperchild=10) as pool:
                 for freq_ind, pol_ind, gains_fit in pool.imap_unordered(
                     calibration_optimization.run_ddcal_optimization_parallel,
-                    self._direction_dependent_calibration_task_generator(
-                        xtol,
-                        maxiter,
-                        verbose,
-                    ),
+                    self._direction_dependent_calibration_task_generator(),
                 ):
                     self.gains[:, freq_ind, pol_ind, :] = gains_fit
         else:
@@ -1173,44 +1168,30 @@ class CalData:
                 for freq_ind in range(self.Nfreqs):
                     gains_fit = calibration_optimization.run_ddcal_optimization(
                         self,
-                        xtol,
-                        maxiter,
                         freq_ind=freq_ind,
                         pol_ind=pol_ind,
-                        verbose=verbose,
                     )
                     self.gains[:, freq_ind, pol_ind, :] = gains_fit
 
-    def delay_weighted_calibration(
-        self, xtol: float = 1e-5, maxiter: int = 200, verbose: bool = False
-    ) -> None:
+    def delay_weighted_calibration(self) -> None:
         """
         Run delay-weighted calibration (DWCal). Updates attribute gains with calibrated values.
-
-        Parameters
-        ----------
-        xtol : float
-            Accuracy tolerance for optimizer. Default 1e-5.
-        maxiter : int
-            Maximum number of iterations for the optimizer. Default 200.
-        verbose : bool
-            Set to True to print optimization outputs. Default False.
         """
 
         if self.gains_multiply_model:
-            print(
-                "ERROR: gains_multiply_model is True. Delay-weighted calibration requires that gains_multiply_model=False."
+            raise ValueError(
+                "gains_multiply_model is True. Delay-weighted calibration requires that gains_multiply_model=False."
             )
-            sys.exit(1)
+        if self.parallel:
+            warnings.warn(
+                "delay_weighted_calibration does not support parallel processing. Proceeding with non-parallel optimization."
+            )
 
         for feed_pol_ind in range(self.N_feed_pols):
             self.gains[:, :, feed_pol_ind] = (
                 calibration_optimization.run_dwcal_optimization_per_pol(
                     self,
-                    xtol,
-                    maxiter,
                     feed_pol_ind,
-                    verbose=verbose,
                 )
             )
 
@@ -1272,61 +1253,44 @@ class CalData:
                         )
             self.dwcal_inv_covariance = dwcal_inv_covariance_new
 
-    def abscal(
-        self, xtol: float = 1e-5, maxiter: int = 200, verbose: bool = False
-    ) -> None:
+    def abscal(self) -> None:
         """
         Run absolute calibration ("abscal"). Updates the abscal_params attribute with calibrated values.
-
-        Parameters
-        ----------
-        xtol : float
-            Accuracy tolerance for optimizer. Default 1e-5.
-        maxiter : int
-            Maximum number of iterations for the optimizer. Default 200.
-        verbose : bool
-            Set to True to print optimization outputs. Default False.
         """
+
+        if self.parallel:
+            warnings.warn(
+                "abscal does not yet support parallel processing. Proceeding with non-parallel optimization."
+            )
+            self.parallel = False
 
         for feed_pol_ind in range(self.N_feed_pols):
             for freq_ind in range(self.Nfreqs):
                 abscal_params = (
                     calibration_optimization.run_abscal_optimization_single_freq(
                         self,
-                        xtol,
-                        maxiter,
                         freq_ind=freq_ind,
                         feed_pol_ind=feed_pol_ind,
-                        verbose=verbose,
                     )
                 )
                 self.abscal_params[:, freq_ind, feed_pol_ind] = abscal_params
 
-    def dw_abscal(
-        self, xtol: float = 1e-5, maxiter: int = 200, verbose: bool = False
-    ) -> None:
+    def dw_abscal(self) -> None:
         """
         Run absolute calibration ("abscal") with delay weighting. Updates the
         abscal_params attribute with calibrated values.
-
-        Parameters
-        ----------
-        xtol : float
-            Accuracy tolerance for optimizer. Default 1e-5.
-        maxiter : int
-            Maximum number of iterations for the optimizer. Default 200.
-        verbose : bool
-            Set to True to print optimization outputs. Default False.
         """
+
+        if self.parallel:
+            warnings.warn(
+                "dw_abscal does not support parallel processing. Proceeding with non-parallel optimization."
+            )
 
         for feed_pol_ind in range(self.N_feed_pols):
             self.abscal_params[:, :, feed_pol_ind] = (
                 calibration_optimization.run_dw_abscal_optimization(
                     self,
-                    xtol,
-                    maxiter,
                     feed_pol_ind=feed_pol_ind,
-                    verbose=verbose,
                 )
             )
 
@@ -1334,7 +1298,6 @@ class CalData:
         self,
         flagging_threshold: float = 2.5,
         return_antenna_flag_list: bool = False,
-        verbose: bool = True,
     ) -> list | None:
         """
         Flags antennas based on the per-antenna cost function. Updates
@@ -1350,7 +1313,6 @@ class CalData:
             times the mean value will be flagged. Default 2.5.
         return_antenna_flag_list : bool
             If True, returns list of flagged antennas.
-        verbose : bool
 
         Returns
         -------
@@ -1408,7 +1370,7 @@ class CalData:
                 flag_antenna_list.append(self.antenna_names)
             self.visibility_weights[:, :, :, :] = 0
 
-        if verbose:
+        if self.verbose:
             print("Completed antenna flagging based on per-antenna cost function.")
             print(f"Flagged antennas: {flag_antenna_list}")
             sys.stdout.flush()

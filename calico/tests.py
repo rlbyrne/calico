@@ -1248,7 +1248,14 @@ class TestStringMethods(unittest.TestCase):
         data = model.copy()
 
         caldata_obj = caldata.CalData()
-        caldata_obj.load_data(data, model, gain_init_stddev=0.1, lambda_val=100.0)
+        caldata_obj.load_data(
+            data,
+            model,
+            gain_init_stddev=0.1,
+            lambda_val=100.0,
+            xtol=1e-8,
+            parallel=False,
+        )
         print(f"Gains initial: {caldata_obj.gains}")
 
         # Unflag all
@@ -1262,10 +1269,7 @@ class TestStringMethods(unittest.TestCase):
             dtype=float,
         )
 
-        caldata_obj.sky_based_calibration(
-            xtol=1e-8,
-            parallel=False,
-        )
+        caldata_obj.sky_based_calibration()
         print(f"Gains fit final: {caldata_obj.gains}")
 
         np.testing.assert_allclose(
@@ -1290,7 +1294,14 @@ class TestStringMethods(unittest.TestCase):
         data = model.copy()
 
         caldata_obj = caldata.CalData()
-        caldata_obj.load_data(data, model, gain_init_stddev=0.1, lambda_val=100.0)
+        caldata_obj.load_data(
+            data,
+            model,
+            gain_init_stddev=0.1,
+            lambda_val=100.0,
+            xtol=1e-8,
+            parallel=False,
+        )
 
         # Unflag all
         caldata_obj.visibility_weights = np.ones(
@@ -1306,10 +1317,7 @@ class TestStringMethods(unittest.TestCase):
         caldata_obj.visibility_weights[2, 10, 0, :] = 0.0
         caldata_obj.visibility_weights[1, 20, 0, :] = 0.0
 
-        caldata_obj.sky_based_calibration(
-            xtol=1e-8,
-            parallel=False,
-        )
+        caldata_obj.sky_based_calibration()
 
         np.testing.assert_allclose(np.abs(caldata_obj.gains), 1.0)
         np.testing.assert_allclose(np.angle(caldata_obj.gains), 0.0, atol=1e-6)
@@ -1321,7 +1329,14 @@ class TestStringMethods(unittest.TestCase):
         data = model.copy()
 
         caldata_obj = caldata.CalData()
-        caldata_obj.load_data(data, model, gain_init_stddev=0.1, lambda_val=100.0)
+        caldata_obj.load_data(
+            data,
+            model,
+            gain_init_stddev=0.1,
+            lambda_val=100.0,
+            xtol=1e-8,
+            parallel=False,
+        )
 
         # Unflag all
         caldata_obj.visibility_weights = np.ones(
@@ -1356,10 +1371,7 @@ class TestStringMethods(unittest.TestCase):
         )
         caldata_obj.data_visibilities[:, baseline_inds, :, :] += data_perturbation
 
-        caldata_obj.sky_based_calibration(
-            xtol=1e-8,
-            parallel=False,
-        )
+        caldata_obj.sky_based_calibration()
 
         flag_ant_list = caldata_obj.flag_antennas_from_per_ant_cost(
             flagging_threshold=2.5,
@@ -1526,6 +1538,8 @@ class TestStringMethods(unittest.TestCase):
             gain_init_stddev=0.1,
             lambda_val=100.0,
             gains_multiply_model=True,
+            xtol=1e-8,
+            parallel=False,
         )
 
         # Unflag all
@@ -1539,10 +1553,7 @@ class TestStringMethods(unittest.TestCase):
             dtype=float,
         )
 
-        caldata_obj.sky_based_calibration(
-            xtol=1e-8,
-            parallel=False,
-        )
+        caldata_obj.sky_based_calibration()
 
         np.testing.assert_allclose(
             np.abs(caldata_obj.gains),
@@ -1573,6 +1584,8 @@ class TestStringMethods(unittest.TestCase):
             gain_init_stddev=0.1,
             lambda_val=100.0,
             gains_multiply_model=True,
+            xtol=1e-8,
+            parallel=False,
         )
 
         # Unflag all
@@ -1589,10 +1602,7 @@ class TestStringMethods(unittest.TestCase):
         caldata_obj.visibility_weights[2, 10, 0, :] = 0.0
         caldata_obj.visibility_weights[1, 20, 0, :] = 0.0
 
-        caldata_obj.sky_based_calibration(
-            xtol=1e-8,
-            parallel=False,
-        )
+        caldata_obj.sky_based_calibration()
 
         np.testing.assert_allclose(np.abs(caldata_obj.gains), np.sqrt(1.2), atol=1e-4)
         np.testing.assert_allclose(np.angle(caldata_obj.gains), 0, atol=1e-6)
@@ -1947,6 +1957,8 @@ class TestStringMethods(unittest.TestCase):
             gain_init_stddev=0.1,
             lambda_val=0,
             gains_multiply_model=True,
+            xtol=1e-7,
+            verbose=False,
         )
 
         np.testing.assert_allclose(
@@ -1993,7 +2005,7 @@ class TestStringMethods(unittest.TestCase):
         )
         np.testing.assert_allclose(cost_perfect_gains, 0, atol=1e-5)
 
-        caldata_obj.direction_dependent_calibration(xtol=1e-7, verbose=False)
+        caldata_obj.direction_dependent_calibration()
 
         np.testing.assert_allclose(caldata_obj.gains[:, :, :, 0], gain1, rtol=1e-5)
         np.testing.assert_allclose(caldata_obj.gains[:, :, :, 1], gain2, rtol=1e-5)
@@ -2025,6 +2037,8 @@ class TestStringMethods(unittest.TestCase):
             gains_multiply_model=True,
             ddcal_max_source_offset_deg=1,
             ddcal_source_offset_taper_deg=0.1,
+            xtol=1e-7,
+            verbose=False,
         )
 
         # Unflag all
@@ -2041,7 +2055,7 @@ class TestStringMethods(unittest.TestCase):
         caldata_obj.visibility_weights[2, 10, 0, :] = 0.0
         caldata_obj.visibility_weights[1, 20, 0, :] = 0.0
 
-        caldata_obj.direction_dependent_calibration(xtol=1e-7, verbose=False)
+        caldata_obj.direction_dependent_calibration()
 
         np.testing.assert_allclose(caldata_obj.gains[:, :, :, 0], gain1, rtol=1e-5)
         np.testing.assert_allclose(caldata_obj.gains[:, :, :, 1], gain2, rtol=1e-5)
@@ -2073,6 +2087,9 @@ class TestStringMethods(unittest.TestCase):
             gains_multiply_model=True,
             ddcal_max_source_offset_deg=1,
             ddcal_source_offset_taper_deg=0.1,
+            xtol=1e-7,
+            parallel=True,
+            verbose=False,
         )
 
         # Unflag all
@@ -2089,9 +2106,7 @@ class TestStringMethods(unittest.TestCase):
         caldata_obj.visibility_weights[2, 10, 0, :] = 0.0
         caldata_obj.visibility_weights[1, 20, 0, :] = 0.0
 
-        caldata_obj.direction_dependent_calibration(
-            xtol=1e-7, parallel=True, verbose=False
-        )
+        caldata_obj.direction_dependent_calibration()
 
         np.testing.assert_allclose(caldata_obj.gains[:, :, :, 0], gain1, rtol=1e-5)
         np.testing.assert_allclose(caldata_obj.gains[:, :, :, 1], gain2, rtol=1e-5)
@@ -2286,7 +2301,9 @@ class TestStringMethods(unittest.TestCase):
         data = model.copy()
 
         caldata_obj = caldata.CalData()
-        caldata_obj.load_data(data, model, gain_init_stddev=0.1, lambda_val=100.0)
+        caldata_obj.load_data(
+            data, model, gain_init_stddev=0.1, lambda_val=100.0, xtol=1e-8
+        )
 
         # Unflag all
         caldata_obj.visibility_weights = np.ones(
@@ -2332,9 +2349,7 @@ class TestStringMethods(unittest.TestCase):
             np.arange(caldata_obj.Nfreqs),
             0,
         )
-        caldata_obj.delay_weighted_calibration(
-            xtol=1e-8,
-        )
+        caldata_obj.delay_weighted_calibration()
 
         np.testing.assert_allclose(np.abs(caldata_obj.gains), 1.0)
         np.testing.assert_allclose(np.angle(caldata_obj.gains), 0.0, atol=1e-6)
@@ -2514,7 +2529,9 @@ class TestStringMethods(unittest.TestCase):
         )
 
         caldata_obj = caldata.CalData()
-        caldata_obj.load_data(data.copy(), model.copy())
+        caldata_obj.load_data(
+            data.copy(), model.copy(), xtol=1e-9, maxiter=100, verbose=True
+        )
 
         # Unflag all
         caldata_obj.visibility_weights = np.ones(
@@ -2527,11 +2544,7 @@ class TestStringMethods(unittest.TestCase):
             dtype=float,
         )
 
-        caldata_obj.abscal(
-            xtol=1e-9,
-            maxiter=100,
-            verbose=True,
-        )
+        caldata_obj.abscal()
 
         calibration_wrappers.apply_abscal(
             data,
