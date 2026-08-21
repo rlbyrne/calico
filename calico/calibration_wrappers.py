@@ -477,7 +477,10 @@ def peeling_wrapper(
         uvcal_list = [uvcal_list]  # Convert to a list
 
     if verbose:
-        print(f"Total processing time {(time.time() - start_time)/60.} minutes.")
+        print(
+            f"Total direction-dependent calibration time {(time.time() - start_time)/60.} minutes."
+        )
+        print("Subtracting peeling sources...")
         sys.stdout.flush()
 
     if log_file_path is not None:
@@ -486,7 +489,9 @@ def peeling_wrapper(
         log_file_new.close()
 
     for model_ind, model in enumerate(model_list):
-        if isinstance(model, str):  # Read model
+
+        # Read model
+        if isinstance(model, str):
             use_model = pyuvdata.UVData()
             if model.endswith(".ms"):
                 use_model.read_ms(
@@ -501,9 +506,13 @@ def peeling_wrapper(
         else:
             use_model = model
         use_model.phase_to_time(mean_time)
-        pyuvdata.utils.uvcalibrate(
-            use_model, uvcal_list[model_ind], inplace=True, time_check=False
-        )
+
+        # Apply calibration
+        use_uvcal = uvcal_list[model_ind]
+        use_uvcal.gain_convention = "multiply"  # Gains are applied to the model, not data, so convention needs to be reversed
+        pyuvdata.utils.uvcalibrate(use_model, use_uvcal, inplace=True, time_check=False)
+
+        # Combine calibrated models
         if model_ind == 0:
             calibrated_model = use_model
         else:
@@ -536,7 +545,8 @@ def peeling_wrapper(
                 ],
             )
 
-    if isinstance(data, str):  # Read data
+    # Read data
+    if isinstance(data, str):
         use_data = pyuvdata.UVData()
         if data.endswith(".ms"):
             use_data.read_ms(
@@ -550,6 +560,8 @@ def peeling_wrapper(
             use_data.read(data)
     else:
         use_data = data
+
+    # Subtract model from data
     use_data.sum_vis(
         calibrated_model,
         difference=True,
