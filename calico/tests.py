@@ -2111,6 +2111,57 @@ class TestStringMethods(unittest.TestCase):
         np.testing.assert_allclose(caldata_obj.gains[:, :, :, 0], gain1, rtol=1e-5)
         np.testing.assert_allclose(caldata_obj.gains[:, :, :, 1], gain2, rtol=1e-5)
 
+    def test_ddcal_single_direction(self):
+
+        model = pyuvdata.UVData()
+        model.read(f"{THIS_DIR}/data/test_model_1freq.uvfits")
+        data = pyuvdata.UVData()
+        data.read(f"{THIS_DIR}/data/test_data_1freq.uvfits")
+
+        gain_init_stddev = 0.1
+
+        caldata_obj = caldata.CalData()
+        caldata_obj.load_data(
+            data,
+            model,
+            gain_init_stddev=gain_init_stddev,
+            gain_init_to_vis_ratio=True,
+            lambda_val=0,
+            gains_multiply_model=True,
+            ddcal_max_source_offset_deg=1,
+            ddcal_source_offset_taper_deg=0.1,
+            xtol=1e-7,
+            parallel=True,
+            verbose=False,
+        )
+
+        # Unflag all
+        caldata_obj.visibility_weights = np.ones(
+            (
+                caldata_obj.Ntimes,
+                caldata_obj.Nbls,
+                caldata_obj.Nfreqs,
+                4,
+            ),
+            dtype=float,
+        )
+        # Set flags
+        caldata_obj.visibility_weights[2, 10, 0, :] = 0.0
+        caldata_obj.visibility_weights[1, 20, 0, :] = 0.0
+
+        caldata_obj.direction_dependent_calibration()
+        uvcal_ddcal = caldata_obj.convert_to_uvcal()
+
+        caldata_obj.initialize_gains(
+            gain_init_stddev=gain_init_stddev, gain_init_to_vis_ratio=True
+        )  # reinitialize gains
+        caldata_obj.sky_based_calibration()
+        uvcal_sky_based_calibration = caldata_obj.convert_to_uvcal()
+
+        np.testing.assert_allclose(
+            uvcal_ddcal.gain_array, uvcal_sky_based_calibration.gain_array, rtol=1e-5
+        )
+
     ################ DELAY-WEIGHTED CALIBRATION TESTS ################
 
     def test_toeplitz_multiplication(self):

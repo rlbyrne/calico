@@ -27,7 +27,7 @@ def sky_based_calibration_wrapper(
     maxiter: int = 200,
     get_crosspol_phase: bool = True,
     crosspol_phase_strategy: str = "crosspol model",
-    antenna_flagging_iterations: int = 1,
+    antenna_flagging_iterations: int = 0,
     antenna_flagging_threshold: float = 2.5,
     parallel: bool = True,
     n_workers: int | None = 20,
@@ -105,7 +105,7 @@ def sky_based_calibration_wrapper(
         get_crosspol_phase is True. If "crosspol model", contrains the crosspol
         phase using the crosspol model visibilities. If "pseudo Stokes V", constrains
         crosspol phase by minimizing pseudo Stokes V.
-    antenna_flagging_iterations : int, default=1
+    antenna_flagging_iterations : int, default=0
         If >0, pre-calibrate and flag antennas based on the residual per-antenna cost.
     antenna_flagging_threshold : float, default=2.5
         Used only if antenna_flagging_iterations>0. Per antenna cost values equal to
@@ -285,9 +285,11 @@ def peeling_wrapper(
     lambda_val: float = 0.0,
     xtol: float = 1e-5,
     maxiter: int = 200,
+    parallel: bool = True,
+    n_workers: int = 20,
     verbose: bool = False,
     log_file_path: str | None = None,
-) -> UVCal:
+) -> UVData:
     """
     Top-level wrapper for running peeling (direction-dependent calibration).
 
@@ -305,7 +307,7 @@ def peeling_wrapper(
         data points to an ms file.
     model_use_column : str, default="MODEL_DATA"
         Column in an ms file to use for the model visibilities. Used only if
-        the elements of model point to ms files.
+        the elements of model_list point to ms files.
     gain_init_calfile : str, optional, default=None
         If not None, provides a path to a pyuvdata-formatted calfits file
         containing gains values for calibration initialization.
@@ -349,6 +351,12 @@ def peeling_wrapper(
         Accuracy tolerance for optimizer.
     maxiter : int, default=200
         Maximum number of iterations for the optimizer.
+    parallel : bool
+        Set to True to parallelize across frequency with multiprocessing.
+        Default True.
+    n_workers : int, optional, default=20
+        Maximum number of multithreaded processes to use. Applicable only if
+        parallel is True. If None, uses the multiprocessing default.
     verbose : bool, default=False
         Set to True to print optimization outputs.
     log_file_path : str, optional, default=None
@@ -356,62 +364,63 @@ def peeling_wrapper(
 
     Returns
     -------
-    UVCal
-        A UVCal object containing the calibrated complex antenna gains.
+    UVData
+        Peeled data.
+    list[UVCal]
+        UVCals object containing the calibrated complex antenna gains.
     """
+
+    start_time = time.time()
 
     if log_file_path is not None:
         stdout_orig = sys.stdout
         stderr_orig = sys.stderr
         sys.stdout = sys.stderr = log_file_new = open(log_file_path, "w")
 
-    start_time = time.time()
-
     if verbose:
         data_read_start_time = time.time()
 
-    check_vis_ordering = True
-    if isinstance(data, str) and isinstance(model, str):
-        if data == model:
-            check_vis_ordering = False  # Data and model come from the same file, so ordering will be identical
-
     print_data_read_time = False
     if isinstance(data, str):  # Read data
-        data_file_path = data
-        data = pyuvdata.UVData()
-        if data_file_path.endswith(".ms"):
-            data.read_ms(
-                data_file_path,
+        use_data = pyuvdata.UVData()
+        if data.endswith(".ms"):
+            use_data.read_ms(
+                data,
                 data_column=data_use_column,
                 ignore_single_chan=False,
             )
-        elif data_file_path.endswith(".uvfits"):
-            data.read_uvfits(data_file_path)
+        elif data.endswith(".uvfits"):
+            use_data.read_uvfits(data)
         else:
-            data.read(data_file_path)
+            use_data.read(data)
         print_data_read_time = True
+    else:
+        use_data = data.copy()  # Copy to preserve original object
 
+    use_model_list = []
     for model_ind, model in enumerate(model_list):
         if isinstance(model, str):  # Read model
-            model_file_path = model
-            model = pyuvdata.UVData()
-            if model_file_path.endswith(".ms"):
-                model.read_ms(
-                    model_file_path,
+            use_model = pyuvdata.UVData()
+            if model.endswith(".ms"):
+                use_model.read_ms(
+                    model,
                     data_column=model_use_column,
                     ignore_single_chan=False,
                 )
-            elif model_file_path.endswith(".uvfits"):
-                model.read_uvfits(model_file_path)
+            elif model.endswith(".uvfits"):
+                use_model.read_uvfits(model)
             else:
-                model.read(model_file_path)
-            model_list[model_ind] = model
+                use_model.read(model)
+            use_model_list.append(use_model)
             print_data_read_time = True
+        else:
+            use_model_list.append(model.copy())
 
     # Ensure data and model are phased the same
-    data.phase_to_time(np.mean(data.time_array))
-    for model in model_list:
-        model.phase_to_time(np.mean(data.time_array))
+    mean_time = np.mean(use_data.time_array)
+    use_data.phase_to_time(mean_time)
+    for model in use_model_list:
+        model.phase_to_time(mean_time)
 
     if verbose:
         if print_data_read_time:
@@ -424,13 +433,13 @@ def peeling_wrapper(
 
     caldata_obj = caldata.CalData()
     caldata_obj.load_data(
-        data=data,
-        model=model_list,
+        data=use_data,
+        model_list=use_model_list,
         gain_init_calfile=gain_init_calfile,
         gain_init_to_vis_ratio=gain_init_to_vis_ratio,
         gains_multiply_model=True,
         gain_init_stddev=gain_init_stddev,
-        check_vis_ordering=check_vis_ordering,
+        check_vis_ordering=True,
         N_feed_pols=N_feed_pols,
         feed_polarization_array=feed_polarization_array,
         min_cal_baseline_m=min_cal_baseline_m,
@@ -463,7 +472,9 @@ def peeling_wrapper(
         sys.stdout.flush()
 
     # Convert to UVCal object
-    uvcal = caldata_obj.convert_to_uvcal()
+    uvcal_list = caldata_obj.convert_to_uvcal()
+    if len(model_list) == 1:
+        uvcal_list = [uvcal_list]  # Convert to a list
 
     if verbose:
         print(f"Total processing time {(time.time() - start_time)/60.} minutes.")
@@ -474,7 +485,100 @@ def peeling_wrapper(
         sys.stderr = stderr_orig
         log_file_new.close()
 
-    return uvcal
+    for model_ind, model in enumerate(model_list):
+        if isinstance(model, str):  # Read model
+            use_model = pyuvdata.UVData()
+            if model.endswith(".ms"):
+                use_model.read_ms(
+                    model,
+                    data_column=model_use_column,
+                    ignore_single_chan=False,
+                )
+            elif model.endswith(".uvfits"):
+                use_model.read_uvfits(model)
+            else:
+                use_model.read(model)
+        else:
+            use_model = model
+        use_model.phase_to_time(mean_time)
+        pyuvdata.utils.uvcalibrate(
+            use_model, uvcal_list[model_ind], inplace=True, time_check=False
+        )
+        if model_ind == 0:
+            calibrated_model = use_model
+        else:
+            calibrated_model.sum_vis(
+                use_model,
+                difference=False,
+                inplace=True,
+                run_check=False,
+                check_extra=False,
+                override_params=[
+                    "scan_number_array",
+                    "phase_center_id_array",
+                    "telescope",
+                    "phase_center_catalog",
+                    "filename",
+                    "phase_center_app_dec",
+                    "nsample_array",
+                    "integration_time",
+                    "phase_center_frame_pa",
+                    "flag_array",
+                    "uvw_array",
+                    "lst_array",
+                    "phase_center_app_ra",
+                    "dut1",
+                    "earth_omega",
+                    "gst0",
+                    "rdate",
+                    "time_array",
+                    "timesys",
+                ],
+            )
+
+    if isinstance(data, str):  # Read data
+        use_data = pyuvdata.UVData()
+        if data.endswith(".ms"):
+            use_data.read_ms(
+                data,
+                data_column=data_use_column,
+                ignore_single_chan=False,
+            )
+        elif data.endswith(".uvfits"):
+            use_data.read_uvfits(data)
+        else:
+            use_data.read(data)
+    else:
+        use_data = data
+    use_data.sum_vis(
+        calibrated_model,
+        difference=True,
+        inplace=True,
+        run_check=False,
+        check_extra=False,
+        override_params=[
+            "scan_number_array",
+            "phase_center_id_array",
+            "telescope",
+            "phase_center_catalog",
+            "filename",
+            "phase_center_app_dec",
+            "nsample_array",
+            "integration_time",
+            "phase_center_frame_pa",
+            "flag_array",
+            "uvw_array",
+            "lst_array",
+            "phase_center_app_ra",
+            "dut1",
+            "earth_omega",
+            "gst0",
+            "rdate",
+            "time_array",
+            "timesys",
+        ],
+    )
+    return use_data, uvcal_list
 
 
 def delay_weighted_calibration_wrapper(

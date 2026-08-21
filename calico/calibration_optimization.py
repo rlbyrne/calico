@@ -316,7 +316,7 @@ def cost_ddcal_wrapper(
     )
 
     if caldata_obj.ddcal_max_source_offset_deg is not None:
-        use_antenna_distances = caldata_obj.antenna_distances[ant_inds]
+        use_antenna_distances = caldata_obj.antenna_distances
         use_freq_array = caldata_obj.freq_array[[freq_ind]]
     else:
         use_antenna_distances = None
@@ -325,7 +325,7 @@ def cost_ddcal_wrapper(
     cost = cost_function_calculations.cost_ddcal(
         gains[:, jnp.newaxis, jnp.newaxis, :],
         jnp.reshape(
-            caldata_obj.model_visibilities[:, :, freq_ind, vis_pol_ind, :],
+            caldata_obj.model_visibilities[:, :, freq_ind, vis_pol_ind, ...],
             (caldata_obj.Ntimes, caldata_obj.Nbls, 1, 1, caldata_obj.n_directions),
         ),
         jnp.reshape(
@@ -960,7 +960,7 @@ def run_ddcal_optimization(
     Returns
     -------
     gains_fit : array of complex
-        Fit gain values. Shape (Nants, n_direction,).
+        Fit gain values. Shape (Nants, n_directions,).
     """
 
     gains_fit = np.full(
@@ -997,13 +997,22 @@ def run_ddcal_optimization(
     )
     ant_inds = np.where(weight_per_ant > 0.0)[0]
 
-    gains_init_flattened = np.stack(
-        (
-            np.real(caldata_obj.gains[ant_inds, freq_ind, pol_ind, :]),
-            np.imag(caldata_obj.gains[ant_inds, freq_ind, pol_ind, :]),
-        ),
-        axis=2,
-    ).flatten()
+    if caldata_obj.n_directions == 1:
+        gains_init_flattened = np.stack(
+            (
+                np.real(caldata_obj.gains[ant_inds, freq_ind, pol_ind, np.newaxis]),
+                np.imag(caldata_obj.gains[ant_inds, freq_ind, pol_ind, np.newaxis]),
+            ),
+            axis=2,
+        ).flatten()
+    else:
+        gains_init_flattened = np.stack(
+            (
+                np.real(caldata_obj.gains[ant_inds, freq_ind, pol_ind, :]),
+                np.imag(caldata_obj.gains[ant_inds, freq_ind, pol_ind, :]),
+            ),
+            axis=2,
+        ).flatten()
 
     # Minimize the cost function
     start_optimize = time.time()

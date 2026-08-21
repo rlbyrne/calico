@@ -959,13 +959,13 @@ class CalData:
 
         return caldata_subset
 
-    def convert_to_uvcal(self) -> UVCal:
+    def convert_to_uvcal(self) -> UVCal | list[UVCal]:
         """
         Generate a pyuvdata UVCal object.
 
         Returns
         -------
-        uvcal : pyuvdata UVCal object
+        uvcal | list(uvcal) : pyuvdata UVCal object. If n_directions > 1, returns a list of UVCal objects.
         """
 
         uvcal = pyuvdata.UVCal()
@@ -996,14 +996,24 @@ class CalData:
         uvcal.lst_array = np.array([self.lst])
         uvcal.time_array = np.array([self.time])
         uvcal.x_orientation = "east"
-        uvcal.gain_array = self.gains[:, :, np.newaxis, :]
+        if self.n_directions == 1:
+            uvcal.gain_array = self.gains[:, :, np.newaxis, :]
+        else:
+            uvcal.gain_array = self.gains[
+                :, :, np.newaxis, :, 0
+            ]  # Initialize with the first direction
         uvcal.ref_antenna_name = "none"
         uvcal.sky_catalog = ""
         uvcal.wide_band = False
         uvcal.flex_spw_id_array = np.zeros(self.Nfreqs, dtype=int)
 
-        # Get flags from nan-ed gains and zeroed weights
-        uvcal.flag_array = (np.isnan(self.gains))[:, :, np.newaxis, :]
+        # Get flags from nan-ed gains
+        if self.n_directions == 1:
+            uvcal.flag_array = np.isnan(self.gains[:, :, np.newaxis, :])
+        else:
+            uvcal.flag_array = np.isnan(
+                self.gains[:, :, np.newaxis, :, 0]
+            )  # Initialize with the first direction
 
         # Get flags from visibility_weights
         antenna_weights = np.zeros(
@@ -1029,6 +1039,10 @@ class CalData:
                         (self.vis_polarization_array == -6)
                         | (self.vis_polarization_array == -7)
                     )[0]
+                else:
+                    raise ValueError(
+                        f"Unknown option for feed_polarization_array {self.feed_polarization_array[pol_ind]}."
+                    )
                 ant1_antenna_weights = np.zeros((self.Nfreqs))
                 ant2_antenna_weights = np.zeros((self.Nfreqs))
                 for vis_pol_ind in use_vis_pol_inds_ant1:
@@ -1055,7 +1069,22 @@ class CalData:
         except:
             print("ERROR: UVCal check failed.")
 
-        return uvcal
+        if self.n_directions == 1:
+            return uvcal
+        else:
+            uvcal_list = [uvcal]
+            for direction_ind in range(1, self.n_directions):
+                uvcal_new = uvcal.copy()
+                uvcal_new.gain_array = self.gains[:, :, np.newaxis, :, direction_ind]
+                uvcal_new.flag_array = np.isnan(
+                    self.gains[:, :, np.newaxis, :, direction_ind]
+                )
+                # Apply flags from visibility weights
+                uvcal_new.flag_array[
+                    np.where(antenna_weights[:, :, np.newaxis, :] == 0)
+                ] = True
+                uvcal_list.append(uvcal_new)
+            return uvcal_list
 
     def _sky_based_calibration_task_generator(self):
         """
@@ -1153,6 +1182,9 @@ class CalData:
                 "get_crosspol_phase is True, but direction_dependent_calibration does not support crosspol phase evaluation."
             )
 
+        if self.Nfreqs == 1:
+            self.parallel = False
+
         if self.parallel:
             n_workers = min(self.Nfreqs, self.n_workers)
             ctx = multiprocessing.get_context("forkserver")
@@ -1162,7 +1194,14 @@ class CalData:
                     calibration_optimization.run_ddcal_optimization_parallel,
                     self._direction_dependent_calibration_task_generator(),
                 ):
-                    self.gains[:, freq_ind, pol_ind, :] = gains_fit
+                    if self.n_directions == 1:
+                        self.gains[:, [freq_ind], [pol_ind]] = gains_fit[
+                            :, np.newaxis, 0
+                        ]
+                    else:
+                        self.gains[:, [freq_ind], [pol_ind], :] = gains_fit[
+                            :, np.newaxis, :
+                        ]
         else:
             for pol_ind in range(self.N_feed_pols):
                 for freq_ind in range(self.Nfreqs):
@@ -1171,7 +1210,14 @@ class CalData:
                         freq_ind=freq_ind,
                         pol_ind=pol_ind,
                     )
-                    self.gains[:, freq_ind, pol_ind, :] = gains_fit
+                    if self.n_directions == 1:
+                        self.gains[:, [freq_ind], [pol_ind]] = gains_fit[
+                            :, np.newaxis, 0
+                        ]
+                    else:
+                        self.gains[:, [freq_ind], [pol_ind], :] = gains_fit[
+                            :, np.newaxis, :
+                        ]
 
     def delay_weighted_calibration(self) -> None:
         """
