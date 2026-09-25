@@ -360,6 +360,110 @@ def cost_ddcal_wrapper(
     return cost
 
 
+def cost_ddcal_multiscale_wrapper(
+    cal_params_flattened: NDArray[np.floating],
+    caldata_obj,
+    ant_inds: NDArray[int],
+    freq_ind: int,
+    vis_pol_ind: int,
+) -> float:
+    """
+    Direction-dependent calibration cost function. Uses the function cost_ddcal.
+    Reformats the input gains to be compatible with the scipy.optimize.minimize function.
+
+    Parameters
+    ----------
+    cal_params_flattened : array of float
+        Array of calibration parameters. The first 3*n_directions indices correspond to the
+        multiscale source shape parameters. The remainder of the array corresponds to
+        gains_flattened. For gains_flattened, even indices correspond to the real components of
+        the gains and odd indices correspond to the imaginary components. Shape
+        (3*n_directions + 2*Nants_unflagged*n_directions,).
+    caldata_obj : CalData
+    ant_inds : array of int
+        Indices of unflagged antennas to be calibrated. Shape (Nants_unflagged,).
+    freq_ind : int
+        Frequency channel index.
+    vis_pol_ind : int
+        Index of the visibility polarization.
+
+    Returns
+    -------
+    cost : float
+        Value of the cost function.
+    """
+
+    multiscale_shape_params = cal_params_flattened[: 3 * caldata_obj.n_directions]
+    multiscale_shape_params = jnp.reshape(
+        multiscale_shape_params, (3, caldata_obj.n_directions)
+    )
+
+    gains_flattened = cal_params_flattened[3 * caldata_obj.n_directions :]
+    gains_reshaped = jnp.reshape(
+        gains_flattened, (len(ant_inds), caldata_obj.n_directions, 2)
+    )
+    if caldata_obj.cartesian_optimization:
+        gains_reshaped = gains_reshaped[:, :, 0] + 1.0j * gains_reshaped[:, :, 1]
+    else:
+        gains_reshaped = gains_reshaped[:, :, 0] * jnp.exp(
+            2 * jnp.pi * 1j * gains_reshaped[:, :, 1]
+        )
+
+    gains = jnp.ones((caldata_obj.Nants, caldata_obj.n_directions), dtype=complex)
+    gains = gains.at[jnp.ix_(ant_inds, jnp.arange(caldata_obj.n_directions))].set(
+        gains_reshaped
+    )
+
+    if caldata_obj.ddcal_max_phase_offset_rad is None:
+        use_ddcal_max_phase_offset_rad = None
+        use_ddcal_phase_offset_taper_rad = None
+        use_ddcal_ant_inds_regularized = None
+    else:
+        use_ddcal_max_phase_offset_rad = [
+            caldata_obj.ddcal_max_phase_offset_rad[freq_ind]
+        ]
+        use_ddcal_phase_offset_taper_rad = [
+            caldata_obj.ddcal_phase_offset_taper_rad[freq_ind]
+        ]
+        use_ddcal_ant_inds_regularized = [
+            caldata_obj.ddcal_ant_inds_regularized[freq_ind]
+        ]
+
+    cost = cost_function_calculations.cost_ddcal(
+        gains[:, jnp.newaxis, jnp.newaxis, :],
+        jnp.reshape(
+            caldata_obj.model_visibilities[:, :, freq_ind, vis_pol_ind, ...],
+            (caldata_obj.Ntimes, caldata_obj.Nbls, 1, 1, caldata_obj.n_directions),
+        ),
+        jnp.reshape(
+            caldata_obj.data_visibilities[:, :, freq_ind, vis_pol_ind],
+            (caldata_obj.Ntimes, caldata_obj.Nbls, 1, 1),
+        ),
+        jnp.reshape(
+            caldata_obj.visibility_weights[:, :, freq_ind, vis_pol_ind],
+            (caldata_obj.Ntimes, caldata_obj.Nbls, 1, 1),
+        ),
+        caldata_obj.ant1_inds,
+        caldata_obj.ant2_inds,
+        caldata_obj.lambda_val,
+        ddcal_max_phase_offset_rad=use_ddcal_max_phase_offset_rad,
+        ddcal_phase_offset_taper_rad=use_ddcal_phase_offset_taper_rad,
+        ddcal_regularized_ant_inds=use_ddcal_ant_inds_regularized,
+        ddcal_multiscale_fitting=caldata_obj.ddcal_multiscale_fitting,
+        ddcal_multiscale_gaussian_stddev_primary=multiscale_shape_params[
+            0, jnp.newaxis, jnp.newaxis, :
+        ],
+        ddcal_multiscale_gaussian_stddev_secondary=multiscale_shape_params[
+            1, jnp.newaxis, jnp.newaxis, :
+        ],
+        ddcal_multiscale_gaussian_angle=multiscale_shape_params[
+            2, jnp.newaxis, jnp.newaxis, :
+        ],
+        uv_array=caldata_obj.uv_array,
+    )
+    return cost
+
+
 def cost_dwcal_wrapper(
     gains_flattened: NDArray[np.floating],
     caldata_obj,
@@ -939,7 +1043,7 @@ def run_skycal_optimization_per_pol_single_freq_parallel(args):
     Wrapper for run_skycal_optimization_per_pol_single_freq that makes the function compatible with
     multiprocessing by unpacking a tuple or arguments.
     """
-    (caldata_subset, freq_ind) = args
+    caldata_subset, freq_ind = args
     start_optimize = time.time()
     gains_fit = run_skycal_optimization_per_pol_single_freq(
         caldata_subset,
@@ -974,6 +1078,12 @@ def run_ddcal_optimization(
     -------
     gains_fit : array of complex
         Fit gain values. Shape (Nants, n_directions,).
+    multiscale_shape_params_fit : array of float or None
+        Gaussian source shape parameters for multiscale ddcal. Shape (3, n_directions,).
+        multiscale_shape_params_fit[0, :] are the primary axis standard deviations,
+        multiscale_shape_params_fit[1, :] are the secondary axis standard deviations, and
+        multiscale_shape_params_fit[2, :] are the angles of the primary axis (in radians).
+        Returns None if ddcal_multiscale_fitting is False.
     """
 
     gains_fit = np.full(
@@ -1028,31 +1138,80 @@ def run_ddcal_optimization(
             (np.abs(gains_init), np.angle(gains_init)), axis=2
         ).flatten()
 
-    # Minimize the cost function
-    start_optimize = time.time()
-    result = scipy.optimize.minimize(
-        cost_ddcal_wrapper,
-        gains_init_flattened,
-        args=(caldata_obj, ant_inds, freq_ind, vis_pol_ind),
-        method="Newton-CG",
-        jac=jax.jacrev(cost_ddcal_wrapper),
-        hess=jax.jacrev(jax.jacrev(cost_ddcal_wrapper)),
-        options={
-            "disp": caldata_obj.verbose,
-            "xtol": caldata_obj.xtol,
-            "maxiter": caldata_obj.maxiter,
-        },
-    )
-    end_optimize = time.time()
-    if caldata_obj.verbose and not caldata_obj.parallel:
-        print(result.message)
-        print(
-            f"Freq. {freq_ind} Pol. {pol_ind}, optimization time: {(end_optimize - start_optimize)/60.} minutes"
+    if caldata_obj.ddcal_multiscale_fitting:
+
+        # Format the multiscale shape parameters
+        multiscale_shape_params = np.zeros((3, caldata_obj.n_directions), dtype=float)
+        multiscale_shape_params[0, :] = (
+            caldata_obj.ddcal_multiscale_gaussian_stddev_primary[freq_ind, pol_ind, :]
         )
-        sys.stdout.flush()
-    gains_fit_single_pol = np.reshape(
-        result.x, (len(ant_inds), caldata_obj.n_directions, 2)
-    )
+        multiscale_shape_params[1, :] = (
+            caldata_obj.ddcal_multiscale_gaussian_stddev_secondary[freq_ind, pol_ind, :]
+        )
+        multiscale_shape_params[2, :] = caldata_obj.ddcal_multiscale_gaussian_angle[
+            freq_ind, pol_ind, :
+        ]
+        multiscale_shape_params = multiscale_shape_params.flatten()
+        cal_params_flattened = np.concatenate(
+            (multiscale_shape_params, gains_init_flattened)
+        )
+
+        # Minimize the cost function
+        start_optimize = time.time()
+        result = scipy.optimize.minimize(
+            cost_ddcal_multiscale_wrapper,
+            cal_params_flattened,
+            args=(caldata_obj, ant_inds, freq_ind, vis_pol_ind),
+            method="Newton-CG",
+            jac=jax.jacrev(cost_ddcal_multiscale_wrapper),
+            hess=jax.jacrev(jax.jacrev(cost_ddcal_multiscale_wrapper)),
+            options={
+                "disp": caldata_obj.verbose,
+                "xtol": caldata_obj.xtol,
+                "maxiter": caldata_obj.maxiter,
+            },
+        )
+        end_optimize = time.time()
+        if caldata_obj.verbose and not caldata_obj.parallel:
+            print(result.message)
+            print(
+                f"Freq. {freq_ind} Pol. {pol_ind}, optimization time: {(end_optimize - start_optimize)/60.} minutes"
+            )
+            sys.stdout.flush()
+        gains_fit_single_pol = np.reshape(
+            result.x[3 * caldata_obj.n_directions :],
+            (len(ant_inds), caldata_obj.n_directions, 2),
+        )
+        multiscale_shape_params_fit = np.reshape(
+            result.x[: 3 * caldata_obj.n_directions], (3, caldata_obj.n_directions)
+        )
+    else:
+        # Minimize the cost function
+        start_optimize = time.time()
+        result = scipy.optimize.minimize(
+            cost_ddcal_wrapper,
+            gains_init_flattened,
+            args=(caldata_obj, ant_inds, freq_ind, vis_pol_ind),
+            method="Newton-CG",
+            jac=jax.jacrev(cost_ddcal_wrapper),
+            hess=jax.jacrev(jax.jacrev(cost_ddcal_wrapper)),
+            options={
+                "disp": caldata_obj.verbose,
+                "xtol": caldata_obj.xtol,
+                "maxiter": caldata_obj.maxiter,
+            },
+        )
+        end_optimize = time.time()
+        if caldata_obj.verbose and not caldata_obj.parallel:
+            print(result.message)
+            print(
+                f"Freq. {freq_ind} Pol. {pol_ind}, optimization time: {(end_optimize - start_optimize)/60.} minutes"
+            )
+            sys.stdout.flush()
+        gains_fit_single_pol = np.reshape(
+            result.x, (len(ant_inds), caldata_obj.n_directions, 2)
+        )
+        multiscale_shape_params_fit = None
 
     if caldata_obj.cartesian_optimization:
         gains_fit[ant_inds, :] = (
@@ -1073,7 +1232,7 @@ def run_ddcal_optimization(
         )
         gains_fit[:, direction_ind] *= np.cos(avg_angle) - 1j * np.sin(avg_angle)
 
-    return gains_fit
+    return gains_fit, multiscale_shape_params_fit
 
 
 def run_ddcal_optimization_parallel(args):
@@ -1081,9 +1240,9 @@ def run_ddcal_optimization_parallel(args):
     Wrapper for run_ddcal_optimization that makes the function compatible with
     multiprocessing by unpacking a tuple or arguments.
     """
-    (caldata_subset, freq_ind, pol_ind) = args
+    caldata_subset, freq_ind, pol_ind = args
     start_optimize = time.time()
-    gains_fit = run_ddcal_optimization(
+    gains_fit, multiscale_shape_params_fit = run_ddcal_optimization(
         caldata_subset,
         freq_ind=0,
         pol_ind=0,
@@ -1094,7 +1253,7 @@ def run_ddcal_optimization_parallel(args):
             f"Freq. {freq_ind} Pol. {pol_ind}, optimization time: {(end_optimize - start_optimize)/60.} minutes"
         )
         sys.stdout.flush()
-    return freq_ind, pol_ind, gains_fit
+    return freq_ind, pol_ind, gains_fit, multiscale_shape_params_fit
 
 
 def run_dwcal_optimization_per_pol(

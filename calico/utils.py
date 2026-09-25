@@ -84,3 +84,42 @@ def tukey_taper(x, taper_start, taper_width):
     out = jnp.where(jnp.abs(x) < taper_start, 1.0, out)
     out = jnp.where(jnp.abs(x) > taper_start + taper_width, 0.0, out)
     return out
+
+
+def gaussian_2d_taper(
+    uv_array, stddev_primary, stddev_secondary, axis_angle, normalize=True
+):
+    """
+    Parameters
+    ----------
+    uv_array : array of float
+        Shape (Nbls, 2,)
+    stddev_primary : array of float
+        Standard deviation of the primary axis.
+    stddev_secondary : array of float
+        Standard deviation of the secondary axis.
+    axis_angle : array of float
+        Angle of the primary axis, in radians.
+    normalize : bool
+        If True, the average value is constrained to be 1.
+
+    Returns
+    -------
+    out : array of float
+        Shape (Nbls,)
+    """
+
+    primary_axis_coords = uv_array[:, [0]] * jnp.cos(
+        axis_angle[jnp.newaxis, ...]
+    ) + uv_array[:, [1]] * jnp.sin(axis_angle[jnp.newaxis, ...])
+    secondary_axis_coords = uv_array[:, [0]] * jnp.sin(
+        axis_angle[jnp.newaxis, ...]
+    ) + uv_array[:, [1]] * jnp.cos(axis_angle[jnp.newaxis, ...])
+    gaussian_2d = jnp.exp(
+        -(primary_axis_coords**2) / (2 * stddev_primary[jnp.newaxis, ...] ** 2)
+        - secondary_axis_coords**2 / (2 * stddev_secondary[jnp.newaxis, ...] ** 2)
+    )
+    if normalize:
+        normalization_factor = jnp.sum(gaussian_2d, axis=0) / jnp.shape(uv_array)[0]
+        gaussian_2d /= normalization_factor[jnp.newaxis, ...]
+    return gaussian_2d

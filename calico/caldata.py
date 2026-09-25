@@ -123,6 +123,18 @@ class CalData:
     ddcal_ant_inds_regularized : list or None
         Indices of regularized antennas for direction-dependent calibration.
         Length Nfreqs. Each element is an array of int with length N_ants_regularized.
+    ddcal_multiscale_fitting : bool
+        If True, run multiscale ddcal with Gaussian blob fitting.
+    ddcal_multiscale_gaussian_stddev_primary : array of float or None
+        Primary axis of the Gaussian blob fitting in ddcal. Defined in the uv plane, in units
+        of meters. Shape (Nfreqs, N_feed_pols, n_directions,).
+    ddcal_multiscale_gaussian_stddev_secondary : array of float or None
+        Secondary axis of the Gaussian blob fitting in ddcal. Defined in the uv plane, in units
+        of meters. Shape (Nfreqs, N_feed_pols, n_directions,).
+    ddcal_multiscale_gaussian_angle : array of float or None
+        Angle of the primary axis for Gaussian blob fitting in ddcal. Units radians. 0
+        corresponds to east-west alignment; Pi/2 corresponds to north-south alignment. Shape
+        (Nfreqs, N_feed_pols, n_directions,).
     cartesian_optimization : bool
         If True, optimize the real and imaginary components of the gains. If False,
         optimize the amplitude and complex phase of the gains.
@@ -175,6 +187,10 @@ class CalData:
         self.ddcal_max_phase_offset_rad = None
         self.ddcal_phase_offset_taper_rad = None
         self.ddcal_ant_inds_regularized = None
+        self.ddcal_multiscale_fitting = False
+        self.ddcal_multiscale_gaussian_stddev_primary = None
+        self.ddcal_multiscale_gaussian_stddev_secondary = None
+        self.ddcal_multiscale_gaussian_angle = None
         self.cartesian_optimization = None
         self.parallel = None
         self.n_workers = None
@@ -388,12 +404,16 @@ class CalData:
         """
         Function to assemble the quantities needed for direction-dependent regularization.
         The regularization prevents peeled sources from drifting too far from their expected
-        position. The function populates ddcal_max_phase_offset_rad, ddcal_phase_offset_taper_rad,
-        and ddcal_ant_inds_regularized. It converts from ddcal_max_source_offset_deg and
-        ddcal_source_offset_taper_deg, which are allowable source position drifts, to the equivalent
-        allowable phase drift for each per-antenna and per-frequency gain. Gains with allowable phase
-        drifts greater than pi are not regularized, because the source drift constraint provides no
-        constraint on the phase of those gains.
+        position.
+
+        The function populates ddcal_max_phase_offset_rad, ddcal_phase_offset_taper_rad,
+        and ddcal_ant_inds_regularized.
+
+        The function converts from ddcal_max_source_offset_deg and ddcal_source_offset_taper_deg,
+        which are allowable source position drifts, to the equivalent allowable phase drift for
+        each per-antenna and per-frequency gain. Gains with allowable phase drifts greater than
+        pi are not regularized, because the source drift constraint provides no constraint on the
+        phase of those gains.
         """
 
         c = 3e8
@@ -431,6 +451,27 @@ class CalData:
                 ddcal_phase_offset_taper_rad_all[use_ant_inds, freq_ind]
             )
 
+    def initialize_ddcal_multiscale_fitting_params(self):
+        """
+        Function that populates ddcal_multiscale_gaussian_stddev_primary, 
+        ddcal_multiscale_gaussian_stddev_secondary, and ddcal_multiscale_gaussian_angle.
+        """
+
+        max_baseline = np.max(np.sqrt(self.uv_array[:, 0] ** 2 + self.uv_array[:, 1] ** 2))
+        self.ddcal_multiscale_gaussian_stddev_primary = np.full(
+            (self.Nfreqs, self.N_feed_pols, self.n_directions),
+            max_baseline,
+            dtype=float,
+        )
+        self.ddcal_multiscale_gaussian_stddev_secondary = np.full(
+            (self.Nfreqs, self.N_feed_pols, self.n_directions),
+            max_baseline,
+            dtype=float,
+        )
+        self.ddcal_multiscale_gaussian_angle = np.zeros(
+            (self.Nfreqs, self.N_feed_pols, self.n_directions), dtype=float
+        )
+
     def load_data(
         self,
         data: pyuvdata.UVData,
@@ -454,6 +495,7 @@ class CalData:
         crosspol_phase_strategy: str | None = None,
         ddcal_max_source_offset_deg: float | None = None,
         ddcal_source_offset_taper_deg: float | None = None,
+        ddcal_multiscale_fitting: bool = False,
         cartesian_optimization: bool | None = None,
         verbose: bool = False,
         parallel: bool = False,
@@ -537,6 +579,8 @@ class CalData:
             Allowable source offset for direction-dependent calibration, in degrees,
         ddcal_source_offset_taper_deg : float or None
             Taper on the source offset regularization for direction-dependent calibration.
+        ddcal_multiscale_fitting : bool
+            If True, run multiscale ddcal with Gaussian blob fitting.
         verbose : bool
             Set to True to print outputs in optimization. Default False.
         parallel : bool
@@ -930,6 +974,9 @@ class CalData:
         self.ddcal_source_offset_taper_deg = ddcal_source_offset_taper_deg
         if self.ddcal_max_source_offset_deg is not None:
             self.ddcal_regularization_setup()
+        self.ddcal_multiscale_fitting = ddcal_multiscale_fitting
+        if self.ddcal_multiscale_fitting:
+            self.initialize_ddcal_multiscale_fitting_params()
         self.get_crosspol_phase = get_crosspol_phase
         self.crosspol_phase_strategy = crosspol_phase_strategy
         if cartesian_optimization is None:
@@ -1033,6 +1080,21 @@ class CalData:
             caldata_subset.ddcal_ant_inds_regularized = self.ddcal_ant_inds_regularized[
                 freq_slice
             ]
+        caldata_subset.ddcal_multiscale_fitting = self.ddcal_multiscale_fitting
+        if self.ddcal_multiscale_fitting:
+            caldata_subset.ddcal_multiscale_gaussian_stddev_primary = (
+                self.ddcal_multiscale_gaussian_stddev_primary[
+                    freq_slice, feed_pol_slice, :
+                ]
+            )
+            caldata_subset.ddcal_multiscale_gaussian_stddev_secondary = (
+                self.ddcal_multiscale_gaussian_stddev_secondary[
+                    freq_slice, feed_pol_slice, :
+                ]
+            )
+            caldata_subset.ddcal_multiscale_gaussian_angle = (
+                self.ddcal_multiscale_gaussian_angle[freq_slice, feed_pol_slice, :]
+            )
         caldata_subset.verbose = self.verbose
         caldata_subset.parallel = self.parallel
         caldata_subset.n_workers = self.n_workers
@@ -1223,6 +1285,10 @@ class CalData:
             raise ValueError(
                 f"sky_based_calibration supports Cartesian optimization only, but cartesian_optimization is {self.cartesian_optimization}."
             )
+        if self.ddcal_multiscale_fitting:
+            raise ValueError(
+                f"sky_based_calibration does not support multiscale fitting, but ddcal_multiscale_fitting is {self.ddcal_multiscale_fitting}."
+            )
 
         if np.max(self.visibility_weights) == 0.0:
             warnings.warn(
@@ -1282,7 +1348,12 @@ class CalData:
             ctx = multiprocessing.get_context("forkserver")
 
             with ctx.Pool(processes=n_workers, maxtasksperchild=10) as pool:
-                for freq_ind, pol_ind, gains_fit in pool.imap_unordered(
+                for (
+                    freq_ind,
+                    pol_ind,
+                    gains_fit,
+                    multiscale_shape_params_fit,
+                ) in pool.imap_unordered(
                     calibration_optimization.run_ddcal_optimization_parallel,
                     self._direction_dependent_calibration_task_generator(),
                 ):
@@ -1294,13 +1365,25 @@ class CalData:
                         self.gains[:, [freq_ind], [pol_ind], :] = gains_fit[
                             :, np.newaxis, :
                         ]
+                    if multiscale_shape_params_fit is not None:
+                        self.ddcal_multiscale_gaussian_stddev_primary[
+                            [freq_ind], [pol_ind], :
+                        ] = multiscale_shape_params_fit[0, np.newaxis, np.newaxis, :]
+                        self.ddcal_multiscale_gaussian_stddev_secondary[
+                            [freq_ind], [pol_ind], :
+                        ] = multiscale_shape_params_fit[1, np.newaxis, np.newaxis, :]
+                        self.ddcal_multiscale_gaussian_angle[
+                            [freq_ind], [pol_ind], :
+                        ] = multiscale_shape_params_fit[2, np.newaxis, np.newaxis, :]
         else:
             for pol_ind in range(self.N_feed_pols):
                 for freq_ind in range(self.Nfreqs):
-                    gains_fit = calibration_optimization.run_ddcal_optimization(
-                        self,
-                        freq_ind=freq_ind,
-                        pol_ind=pol_ind,
+                    gains_fit, multiscale_shape_params_fit = (
+                        calibration_optimization.run_ddcal_optimization(
+                            self,
+                            freq_ind=freq_ind,
+                            pol_ind=pol_ind,
+                        )
                     )
                     if self.n_directions == 1:
                         self.gains[:, [freq_ind], [pol_ind]] = gains_fit[
@@ -1310,6 +1393,16 @@ class CalData:
                         self.gains[:, [freq_ind], [pol_ind], :] = gains_fit[
                             :, np.newaxis, :
                         ]
+                    if multiscale_shape_params_fit is not None:
+                        self.ddcal_multiscale_gaussian_stddev_primary[
+                            [freq_ind], [pol_ind], :
+                        ] = multiscale_shape_params_fit[0, np.newaxis, np.newaxis, :]
+                        self.ddcal_multiscale_gaussian_stddev_secondary[
+                            [freq_ind], [pol_ind], :
+                        ] = multiscale_shape_params_fit[1, np.newaxis, np.newaxis, :]
+                        self.ddcal_multiscale_gaussian_angle[
+                            [freq_ind], [pol_ind], :
+                        ] = multiscale_shape_params_fit[2, np.newaxis, np.newaxis, :]
 
     def delay_weighted_calibration(self) -> None:
         """
@@ -1327,6 +1420,10 @@ class CalData:
         if self.parallel:
             warnings.warn(
                 "delay_weighted_calibration does not support parallel processing. Proceeding with non-parallel optimization."
+            )
+        if self.ddcal_multiscale_fitting:
+            raise ValueError(
+                f"delay_weighted_calibration does not support multiscale fitting, but ddcal_multiscale_fitting is {self.ddcal_multiscale_fitting}."
             )
 
         for feed_pol_ind in range(self.N_feed_pols):
@@ -1405,6 +1502,10 @@ class CalData:
                 "abscal does not yet support parallel processing. Proceeding with non-parallel optimization."
             )
             self.parallel = False
+        if self.ddcal_multiscale_fitting:
+            raise ValueError(
+                f"abscal does not support multiscale fitting, but ddcal_multiscale_fitting is {self.ddcal_multiscale_fitting}."
+            )
 
         for feed_pol_ind in range(self.N_feed_pols):
             for freq_ind in range(self.Nfreqs):
@@ -1426,6 +1527,10 @@ class CalData:
         if self.parallel:
             warnings.warn(
                 "dw_abscal does not support parallel processing. Proceeding with non-parallel optimization."
+            )
+        if self.ddcal_multiscale_fitting:
+            raise ValueError(
+                f"dw_abscal does not support multiscale fitting, but ddcal_multiscale_fitting is {self.ddcal_multiscale_fitting}."
             )
 
         for feed_pol_ind in range(self.N_feed_pols):

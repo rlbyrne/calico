@@ -516,6 +516,11 @@ def cost_ddcal(
     ddcal_max_phase_offset_rad: NDArray[np.floating] | None = None,
     ddcal_phase_offset_taper_rad: NDArray[np.floating] | None = None,
     ddcal_regularized_ant_inds: NDArray[np.integer] | None = None,
+    ddcal_multiscale_fitting: bool = False,
+    ddcal_multiscale_gaussian_stddev_primary: NDArray[np.floating] | None = None,
+    ddcal_multiscale_gaussian_stddev_secondary: NDArray[np.floating] | None = None,
+    ddcal_multiscale_gaussian_angle: NDArray[np.floating] | None = None,
+    uv_array: NDArray[np.floating] | None = None,
 ) -> float:
     """
     Calculate the cost function (chi-squared) value.
@@ -549,6 +554,21 @@ def cost_ddcal(
         Taper on the source direction regularizaton term. Length Nfreqs.
     ddcal_regularized_ant_inds : list or None
         Indices of the antenna-frequency pairs that are regularized. Length Nfreqs.
+    ddcal_multiscale_fitting : bool
+        If True, allow Gaussian blob fitting.
+    ddcal_multiscale_gaussian_stddev_primary : array of float or None
+        Primary axis of the Gaussian blob fitting. Defined in the uv plane, in units of meters.
+        Shape (Nfreqs, N_feed_pols, n_directions,). Used only if ddcal_multiscale_fitting is True.
+    ddcal_multiscale_gaussian_stddev_secondary : array of float or None
+        Secondary axis of the Gaussian blob fitting. Defined in the uv plane, in units of meters.
+        Shape (Nfreqs, N_feed_pols, n_directions,). Used only if ddcal_multiscale_fitting is True.
+    ddcal_multiscale_gaussian_angle : array of float or None
+        Angle of the primary axis for Gaussian blob fitting. Units radians. 0 corresponds to
+        east-west alignment; Pi/2 corresponds to north-south alignment. Shape
+        (Nfreqs, N_feed_pols, n_directions,). Used only if ddcal_multiscale_fitting is True.
+    uv_array : array of float or None
+        Shape (Nbls, 2,). Baseline positions in the UV plane, units meters. Used only if
+        ddcal_multiscale_fitting is True.
 
     Returns
     -------
@@ -558,17 +578,25 @@ def cost_ddcal(
 
     n_directions = jnp.shape(gains)[-1]
     for direction_ind in range(n_directions):
-        gains_expanded = (
-            gains[ant1_inds, :, :, direction_ind]
-            * jnp.conj(gains[ant2_inds, :, :, direction_ind])
-        )[jnp.newaxis, :, :, :]
+        gains_expanded = gains[ant1_inds, :, :, direction_ind] * jnp.conj(
+            gains[ant2_inds, :, :, direction_ind]
+        )
+        if ddcal_multiscale_fitting:
+            gains_expanded *= utils.gaussian_2d_taper(
+                uv_array, 
+                ddcal_multiscale_gaussian_stddev_primary[:, :, direction_ind],
+                ddcal_multiscale_gaussian_stddev_secondary[:, :, direction_ind],
+                ddcal_multiscale_gaussian_angle[:, :, direction_ind],
+            )
         if direction_ind == 0:
             calibrated_model = (
-                gains_expanded * model_visibilities[:, :, :, :, direction_ind]
+                gains_expanded[jnp.newaxis, :, :, :]
+                * model_visibilities[:, :, :, :, direction_ind]
             )
         else:
             calibrated_model += (
-                gains_expanded * model_visibilities[:, :, :, :, direction_ind]
+                gains_expanded[jnp.newaxis, :, :, :]
+                * model_visibilities[:, :, :, :, direction_ind]
             )
     res_vec = data_visibilities - calibrated_model
     cost = jnp.sum(visibility_weights * jnp.abs(res_vec) ** 2)
