@@ -106,20 +106,25 @@ def gaussian_2d_taper(
     Returns
     -------
     out : array of float
-        Shape (Nbls,)
+        Shape (Nbls, ...)
     """
 
-    primary_axis_coords = uv_array[:, [0]] * jnp.cos(
-        axis_angle[jnp.newaxis, ...]
-    ) + uv_array[:, [1]] * jnp.sin(axis_angle[jnp.newaxis, ...])
-    secondary_axis_coords = uv_array[:, [0]] * jnp.sin(
-        axis_angle[jnp.newaxis, ...]
-    ) + uv_array[:, [1]] * jnp.cos(axis_angle[jnp.newaxis, ...])
+    u = uv_array[:, 0][:, jnp.newaxis, jnp.newaxis]  # (Nbls, 1, 1)
+    v = uv_array[:, 1][:, jnp.newaxis, jnp.newaxis]  # (Nbls, 1, 1)
+
+    cos_a = jnp.cos(axis_angle[jnp.newaxis, ...])  # (1, Nfreqs, Npols)
+    sin_a = jnp.sin(axis_angle[jnp.newaxis, ...])  # (1, Nfreqs, Npols)
+
+    primary_axis_coords = u * cos_a + v * sin_a  # (Nbls, Nfreqs, Npols)
+    secondary_axis_coords = u * sin_a + v * cos_a  # (Nbls, Nfreqs, Npols)
+
     gaussian_2d = jnp.exp(
         -(primary_axis_coords**2) / (2 * stddev_primary[jnp.newaxis, ...] ** 2)
         - secondary_axis_coords**2 / (2 * stddev_secondary[jnp.newaxis, ...] ** 2)
     )
+
     if normalize:
         normalization_factor = jnp.sum(gaussian_2d, axis=0) / jnp.shape(uv_array)[0]
         gaussian_2d /= normalization_factor[jnp.newaxis, ...]
+
     return gaussian_2d

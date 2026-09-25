@@ -4,6 +4,7 @@ import calibration_wrappers
 import cost_function_calculations
 import calibration_qa
 import caldata
+import utils
 import pyuvdata
 import os
 import unittest
@@ -2179,39 +2180,27 @@ class TestStringMethods(unittest.TestCase):
 
     def test_ddcal_multiscale(self):
 
-        gain1 = 0.8
-        gain2 = 1.5
+        model = pyuvdata.UVData()
+        model.read(f"{THIS_DIR}/data/test_model_1freq.uvfits")
+        data = pyuvdata.UVData()
+        data.read(f"{THIS_DIR}/data/test_data_1freq.uvfits")
 
-        model1 = pyuvdata.UVData()
-        model1.read(f"{THIS_DIR}/data/test_model_1freq.uvfits")
-        data = model1.copy()
-        model2 = model1.copy()
-
-        random_weights = np.random.uniform(
-            low=0.0, high=1.0, size=np.shape(model1.data_array)
-        )
-        model1.data_array *= random_weights
-        model2.data_array *= 1 - random_weights
-        model1.data_array /= gain1**2
-        model2.data_array /= gain2**2
+        gain_init_stddev = 0.1
 
         caldata_obj = caldata.CalData()
         caldata_obj.load_data(
             data,
-            model_list=[model1, model2],
-            gain_init_stddev=0.1,
+            model,
+            gain_init_stddev=gain_init_stddev,
+            gain_init_to_vis_ratio=True,
             lambda_val=0,
             gains_multiply_model=True,
+            ddcal_max_source_offset_deg=1,
+            ddcal_source_offset_taper_deg=0.1,
             xtol=1e-7,
+            parallel=True,
             verbose=False,
             ddcal_multiscale_fitting=True,
-        )
-
-        np.testing.assert_allclose(
-            caldata_obj.model_visibilities[:, :, :, :, 0] * gain1**2
-            + caldata_obj.model_visibilities[:, :, :, :, 1] * gain2**2,
-            caldata_obj.data_visibilities,
-            rtol=1e-6,
         )
 
         # Unflag all
@@ -2228,33 +2217,47 @@ class TestStringMethods(unittest.TestCase):
         caldata_obj.visibility_weights[2, 10, 0, :] = 0.0
         caldata_obj.visibility_weights[1, 20, 0, :] = 0.0
 
-        perfect_gains = np.zeros(
-            (
-                caldata_obj.Nants,
-                caldata_obj.Nfreqs,
-                caldata_obj.N_feed_pols,
-                caldata_obj.n_directions,
-            ),
-            dtype=complex,
-        )
-        perfect_gains[:, :, :, 0] = gain1
-        perfect_gains[:, :, :, 1] = gain2
-
-        cost_perfect_gains = cost_function_calculations.cost_ddcal(
-            perfect_gains,
-            caldata_obj.model_visibilities[:, :, :, 0:2, :],
-            caldata_obj.data_visibilities[:, :, :, 0:2],
-            caldata_obj.visibility_weights[:, :, :, 0:2],
-            caldata_obj.ant1_inds,
-            caldata_obj.ant2_inds,
-            caldata_obj.lambda_val,
-        )
-        np.testing.assert_allclose(cost_perfect_gains, 0, atol=1e-5)
-
         caldata_obj.direction_dependent_calibration()
+        uvcal_ddcal = caldata_obj.convert_to_uvcal()
 
-        np.testing.assert_allclose(caldata_obj.gains[:, :, :, 0], gain1, rtol=1e-5)
-        np.testing.assert_allclose(caldata_obj.gains[:, :, :, 1], gain2, rtol=1e-5)
+        caldata_obj.initialize_gains(
+            gain_init_stddev=gain_init_stddev, gain_init_to_vis_ratio=True
+        )  # reinitialize gains
+        caldata_obj.sky_based_calibration()
+        uvcal_sky_based_calibration = caldata_obj.convert_to_uvcal()
+
+        np.testing.assert_allclose(
+            uvcal_ddcal.gain_array, uvcal_sky_based_calibration.gain_array, rtol=1e-5
+        )
+
+    def test_gaussian_uv_window(self):
+
+        model = pyuvdata.UVData()
+        model.read(f"{THIS_DIR}/data/test_model_1freq.uvfits")
+        data = model.copy()
+
+        caldata_obj = caldata.CalData()
+        caldata_obj.load_data(
+            data,
+            model=model,
+            gain_init_stddev=0.1,
+            lambda_val=0,
+            gains_multiply_model=True,
+            xtol=1e-7,
+            verbose=False,
+        )
+
+        gaussian_window = utils.gaussian_2d_taper(
+            caldata_obj.uv_array,
+            np.full((caldata_obj.Nfreqs, caldata_obj.N_feed_pols), 100),
+            np.full((caldata_obj.Nfreqs, caldata_obj.N_feed_pols), 10),
+            np.full((caldata_obj.Nfreqs, caldata_obj.N_feed_pols), np.pi / 4),
+            normalize=True,
+        )
+        np.testing.assert_allclose(
+            np.shape(gaussian_window),
+            np.array([caldata_obj.Nbls, caldata_obj.Nfreqs, caldata_obj.N_feed_pols]),
+        )
 
     ################ DELAY-WEIGHTED CALIBRATION TESTS ################
 
