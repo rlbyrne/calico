@@ -283,6 +283,7 @@ def peeling_wrapper(
     max_cal_baseline_lambda: float | None = None,
     max_source_offset_deg: float | None = None,
     source_offset_taper_deg: float | None = None,
+    multiscale_peel=False,
     lambda_val: float = 0.0,
     xtol: float = 1e-5,
     maxiter: int = 200,
@@ -349,6 +350,8 @@ def peeling_wrapper(
         Maximum allowable source offset in direction-dependent calibration.
     source_offset_taper_deg : float, optional, default=None
         Taper on the allowable source offset regularization.
+    multiscale_peel : bool, default=False
+        If True, run multiscale peeling (allow sources to be convolved with a Gaussian).
     lambda_val : float, default=0.0
         Weight of the phase regularization term; must be positive or 0.
     xtol : float, default=1e-5
@@ -458,6 +461,7 @@ def peeling_wrapper(
         n_workers=n_workers,
         ddcal_max_source_offset_deg=max_source_offset_deg,
         ddcal_source_offset_taper_deg=source_offset_taper_deg,
+        ddcal_multiscale_fitting=multiscale_peel,
     )
 
     if verbose:
@@ -515,6 +519,34 @@ def peeling_wrapper(
         use_uvcal = uvcal_list[model_ind]
         use_uvcal.gain_convention = "multiply"  # Gains are applied to the model, not data, so convention needs to be reversed
         pyuvdata.utils.uvcalibrate(use_model, use_uvcal, inplace=True, time_check=False)
+
+        if multiscale_peel:  # Attenuate by the Gaussian parameters
+            for feed_pol_ind, feed_pol in enumerate(
+                caldata_obj.feed_polarization_array
+            ):
+                gaussian_taper = utils.gaussian_2d_taper(
+                    use_model.uvw_array[:, :2],
+                    caldata_obj.ddcal_multiscale_gaussian_stddev_primary[
+                        :, feed_pol_ind, model_ind
+                    ],
+                    caldata_obj.ddcal_multiscale_gaussian_stddev_secondary[
+                        :, feed_pol_ind, model_ind
+                    ],
+                    caldata_obj.ddcal_multiscale_gaussian_angle[
+                        :, feed_pol_ind, model_ind
+                    ],
+                )
+                for vis_pol_ind in np.where(use_model.polarization_array == feed_pol)[
+                    0
+                ]:
+                    use_model.data_array[:, :, vis_pol_ind] *= gaussian_taper
+                for vis_pol_ind in np.where(
+                    (use_model.polarization_array == -7)
+                    + (use_model.polarization_array == -8)
+                )[0]:
+                    use_model.data_array[:, :, vis_pol_ind] *= np.sqrt(
+                        gaussian_taper
+                    )  # Cross-polarizations get 2 factors
 
         # Combine calibrated models
         if model_ind == 0:
