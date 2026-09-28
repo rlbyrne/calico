@@ -109,8 +109,9 @@ def gaussian_2d_taper(
         Shape (Nbls, ...)
     """
 
-    u = uv_array[:, 0][:, jnp.newaxis, jnp.newaxis]  # (Nbls, 1, 1)
-    v = uv_array[:, 1][:, jnp.newaxis, jnp.newaxis]  # (Nbls, 1, 1)
+    n_dims = stddev_primary.ndim
+    u = uv_array[:, 0].reshape((-1,) + (1,) * n_dims)  # (Nbls, 1, 1)
+    v = uv_array[:, 1].reshape((-1,) + (1,) * n_dims)  # (Nbls, 1, 1)
 
     cos_a = jnp.cos(axis_angle[jnp.newaxis, ...])  # (1, Nfreqs, Npols)
     sin_a = jnp.sin(axis_angle[jnp.newaxis, ...])  # (1, Nfreqs, Npols)

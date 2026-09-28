@@ -3,7 +3,7 @@ from numpy.typing import NDArray
 import sys
 import time
 import pyuvdata
-from calico import caldata
+from calico import caldata, utils
 from pyuvdata import UVData, UVCal
 
 
