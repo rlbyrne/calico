@@ -1078,12 +1078,12 @@ def run_ddcal_optimization(
     -------
     gains_fit : array of complex
         Fit gain values. Shape (Nants, n_directions,).
-    multiscale_shape_params_fit : array of float or None
+    multiscale_shape_params_fit : array of float
         Gaussian source shape parameters for multiscale ddcal. Shape (3, n_directions,).
         multiscale_shape_params_fit[0, :] are the primary axis standard deviations,
         multiscale_shape_params_fit[1, :] are the secondary axis standard deviations, and
         multiscale_shape_params_fit[2, :] are the angles of the primary axis (in radians).
-        Returns None if ddcal_multiscale_fitting is False.
+        Returns all nans if ddcal_multiscale_fitting is False.
     """
 
     gains_fit = np.full(
@@ -1104,7 +1104,7 @@ def run_ddcal_optimization(
             print("WARNING: All data flagged.")
             sys.stdout.flush()
         gains_fit[...] = np.nan + 1j * np.nan
-        return gains_fit
+        return gains_fit, np.full((3, caldata_obj.n_directions), np.nan)
 
     vis_weights_summed = np.sum(
         caldata_obj.visibility_weights[:, :, freq_ind, pol_ind], axis=0
@@ -1211,7 +1211,7 @@ def run_ddcal_optimization(
         gains_fit_single_pol = np.reshape(
             result.x, (len(ant_inds), caldata_obj.n_directions, 2)
         )
-        multiscale_shape_params_fit = None
+        multiscale_shape_params_fit = np.full((3, caldata_obj.n_directions), np.nan)
 
     if caldata_obj.cartesian_optimization:
         gains_fit[ant_inds, :] = (
